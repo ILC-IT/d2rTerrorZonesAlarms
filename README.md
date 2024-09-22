@@ -2,7 +2,7 @@
 Android's app that checks the next terror zone for Diablo 2 Resurrected.
 - Checks API https://www.d2emu.com/api/v1/tz to see current, next and next_hour of terror zone.
 - It shows the info and creates a foreground service and a notification with alarm:
-  - At customizable minute, it will check every hour if selected terror zone is next and will make a notification with alarm sound (lasts 5 minutes in the notification bar). 
+  - At customizable minute, it will check every hour if selected terror zone is next and will make a notification with alarm sound (lasts 15 minutes in the notification bar). 
   - You can select inside app the terror zones to be alarmed with. If you check some of them and next terror zone matches with one of your selected zones, you will receive a notification with alarm sound.
 - **Since d2emu API now requires authorization in headers, you must put your username and token inside Utils.kt** before building apk.
 - Tested in Android 7, 10, 11, 12, 13 with Xiaomi and Realme phones.
@@ -16,9 +16,10 @@ Android's app that checks the next terror zone for Diablo 2 Resurrected.
 ## Images from app
 ![1](.pictures/1.png) ![2](.pictures/2.png)
 ## **WARNING**:
-- You need to allow background data and no battery restrictions/optimizations in your phone.
+- You need to allow notifications, background data and no battery restrictions/optimizations in your phone.
 - If you have a Realme phone you need to:
   - Bateria / Optimizar uso de bateria / no optimizar
   - Bateria / Espera optimizada / desactivado
   - App / Uso de bateria / permitir en segundo plano / permitir inicio automatico
-  - App / Gestionar notificaciones / permitir todo
+- For example, here you can see pictures from settings from Realme Android 13:
+![3](.pictures/3.png) ![4](.pictures/4.png) ![5](.pictures/5.png)
