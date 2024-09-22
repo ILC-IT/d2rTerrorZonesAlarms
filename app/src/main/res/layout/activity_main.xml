@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:id="@+id/startstop"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        tools:ignore="MissingConstraints">
+
+        <!-- Start Service -->
+        <Button
+            android:id="@+id/btnStartService"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/start_foreground_service" android:paddingTop="20dp" android:layout_marginTop="20dp"/>
+
+        <!-- Stop Service -->
+        <Button
+            android:id="@+id/btnStopService"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/stop_foreground_service"/>
+
+    </LinearLayout>
+
+    <!-- Update Button -->
+    <Button
+        android:id="@+id/idActualizar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_below="@id/startstop"
+        android:layout_margin="16dp"
+        android:padding="16dp"
+        android:text="@string/actualizar" />
+
+    <EditText
+        android:id="@+id/minuteInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/startstop"
+        android:layout_toEndOf="@id/idActualizar"
+        android:inputType="number"
+        android:hint="@string/minuto_0_59"
+        android:maxLength="2"
+        android:background="@color/mode_secondary"
+        android:layout_marginVertical="16dp"
+        android:minHeight="48dp"
+        android:minWidth="48dp"
+        android:gravity="center"
+        android:layout_marginStart="140dp" />
+
+    <!-- Set Alarm Button -->
+    <Button
+        android:id="@+id/setAlarmButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@id/idActualizar"
+        android:layout_below="@id/startstop"
+        android:layout_margin="16dp"
+        android:padding="16dp"
+        android:text="@string/set_alarm" />
+
+
+    <!-- Heading TextView -->
+    <TextView
+        android:id="@+id/idTZHeading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/idActualizar"
+        android:layout_marginTop="16dp"
+        android:text="@string/terror_zones"
+        android:textAlignment="center"
+        android:textColor="@color/mode_secondary"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- Current TextView -->
+    <TextView
+        android:id="@+id/idTZCurrent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/idTZHeading"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:text=""
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp" />
+
+    <!-- Next TextView -->
+    <TextView
+        android:id="@+id/idTZNext"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/idTZCurrent"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:text=""
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp" />
+
+    <!-- Show List Button -->
+    <Button
+        android:id="@+id/showListButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/idTZNext"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:text="@string/show_list" />
+
+    <!-- LinearLayout for the 3 buttons -->
+    <LinearLayout
+        android:id="@+id/buttonsListLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_below="@id/showListButton"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:visibility="gone">
+
+        <!-- Select All List Button -->
+        <Button
+            android:id="@+id/selectAllListButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/seleccionar_todas" />
+
+        <!-- Close List Button -->
+        <Button
+            android:id="@+id/closeListButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/close_list" />
+
+        <!-- Clear List Button -->
+        <Button
+            android:id="@+id/clearListButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/borrar_lista" />
+    </LinearLayout>
+
+    <!-- ListView -->
+    <ListView
+        android:id="@+id/listView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/buttonsListLayout"
+        android:layout_marginTop="16dp"
+        android:visibility="gone"
+        android:divider="@color/mode_secondary"
+        android:dividerHeight="1sp"
+        android:choiceMode="multipleChoice" />
+
+</RelativeLayout>
