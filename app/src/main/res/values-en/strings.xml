@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="actualizar">Update</string>
+    <string name="show_list">Select Terror Zones</string>
+    <string name="close_list">Close</string>
+    <string name="borrar_lista">Delete</string>
+    <string name="seleccionar_todas">Select all</string>
+    <string name="set_alarm">Set Alarm</string>
+</resources>

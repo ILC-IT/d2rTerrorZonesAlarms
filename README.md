@@ -9,6 +9,7 @@ Android's app that checks the next terror zone for Diablo 2 Resurrected.
 - Based on the work from [Roberto Huertas](https://github.com/robertohuertasm), you can check a detailed info [here](https://robertohuertas.com/2019/06/29/android_foreground_services/) and [his repo](https://github.com/robertohuertasm/endless-service).
 ## How does it work?
 - You need to press START APP button for creating the foregorund service. You will receive a notification.
+- Notificaction will update itself at xx.01 with new info from API.
 - You can set the minute for the alarm (it is 30 minute by default), then press SET ALARM button and alarm will be programmed.
 - If you want to change the minute of the alarm, just put the new minute and press SET ALARM and the new alarm will be programmed
 - Press the SELECCIONAR ZONAS OP button to see the list of terror zones, then you can select what you want and then press CERRAR button.
@@ -16,7 +17,7 @@ Android's app that checks the next terror zone for Diablo 2 Resurrected.
 ## Images from app
 ![1](.pictures/1.png) ![2](.pictures/2.png)
 ## **WARNING**:
-- You need to allow notifications, background data and no battery restrictions/optimizations in your phone.
+- You need to allow notifications, auto launch, background data and no battery restrictions/optimizations in your phone.
 - If you have a Realme phone you need to:
   - Bateria / Optimizar uso de bateria / no optimizar
   - Bateria / Espera optimizada / desactivado

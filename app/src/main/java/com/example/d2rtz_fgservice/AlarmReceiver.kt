@@ -21,6 +21,13 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
                 context.startService(serviceIntent)
             }
+            "HOURLY_EXACT_UPDATE_ACTION" -> {
+                // Solo para actualizar la notificación con los datos actuales
+                val serviceIntent = Intent(context, EndlessService::class.java).apply {
+                    action = "CHECK_API_NOTIFICATION"
+                }
+                context.startService(serviceIntent)
+            }
         }
     }
 }

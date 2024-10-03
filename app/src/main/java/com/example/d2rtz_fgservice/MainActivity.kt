@@ -256,7 +256,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkApiImmediately() {
-        val url = "https://www.d2emu.com/api/v1/tz"
+        val url = Login.URL
         var tzCurrent: String
         var tzNext: String
         var tzNextHour: Long

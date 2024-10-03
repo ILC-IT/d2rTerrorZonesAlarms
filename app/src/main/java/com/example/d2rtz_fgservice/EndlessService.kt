@@ -61,6 +61,9 @@ class EndlessService : Service() {
                 "CHECK_API" -> {
                     startApiCheckLoop() // Ejecuta el bucle de verificación de la API y programa la siguiente alarma
                 }
+                "CHECK_API_NOTIFICATION" -> {
+                    startApiNotificationLoop() // Ejecuta la API y programa la siguiente alarma para actualizar la notificacion de fgServie
+                }
                 else -> log("This should never happen. No action in the received intent")
             }
         } else {
@@ -75,6 +78,10 @@ class EndlessService : Service() {
     override fun onCreate() {
         super.onCreate()
         log("The service has been created".uppercase())
+        // Creamos los canales de notificaciones
+        createNotificationChannel()
+        createNotificationAlarmChannel()
+        // Creamos el fgService
         val notification = createNotification()
         startForeground(1, notification)
         // Registrar el BroadcastReceiver para actualizar las alarmas
@@ -111,6 +118,7 @@ class EndlessService : Service() {
     }
 
     private var serviceJob: Job? = null
+    private var notificationJob: Job? = null
 
     private fun startService() {
         if (isServiceStarted) return
@@ -127,7 +135,8 @@ class EndlessService : Service() {
                 }
             }
 
-//        val resultadoMs = milisegundosHastaMinuto(minutoParaAlarmas)
+        // Iniciar la primera llamada a la API y la actualización de la notificación del fgService
+        checkApiForNotification()
 
         // Configurar la primera alarma para despertar al telefono
         // e iniciar el chequeo de la API y las alarmas repetitivas
@@ -145,6 +154,15 @@ class EndlessService : Service() {
         }
     }
 
+    private fun startApiNotificationLoop() {
+        if (!isServiceStarted) return
+
+        notificationJob = CoroutineScope(Dispatchers.IO).launch {
+            // Checkear la API y actualizar la notificación
+            checkApiForNotification()
+        }
+    }
+
     private fun stopService() {
         log("Stopping the foreground service")
         Toast.makeText(this, "Service stopping", Toast.LENGTH_SHORT).show()
@@ -158,10 +176,13 @@ class EndlessService : Service() {
             // Cancelar la corutina en ejecución
             serviceJob?.cancel()
             serviceJob = null
+            notificationJob?.cancel()
+            notificationJob = null
 
             // Cancelar todas las alarmas
             cancelInitialAlarm()
             cancelHourlyAlarm()
+            cancelHourlyUpdateAtExactHour()
 
             stopForeground(STOP_FOREGROUND_DETACH)
             stopSelf()
@@ -229,6 +250,35 @@ class EndlessService : Service() {
         log("Hourly alarm set for: ${calendar.time}")
     }
 
+    private fun setHourlyUpdateAtExactHour() {
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, AlarmReceiver::class.java).apply {
+            action = "HOURLY_EXACT_UPDATE_ACTION" // Nueva acción específica para la alarma horaria en punto
+        }
+        val pendingIntent = PendingIntent.getBroadcast(this, 2, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        // Obtener la hora actual y programar la alarma para el próximo "XX:01"
+        val calendar = Calendar.getInstance()
+
+        // Establecer el minuto a 1 para la próxima hora en punto
+        calendar.set(Calendar.MINUTE, 1)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+
+        // Si ya pasamos la hora en punto, ajustar a la siguiente hora
+        if (calendar.timeInMillis <= System.currentTimeMillis()) {
+            calendar.add(Calendar.HOUR_OF_DAY, 1)
+        }
+
+        // Establecer la alarma
+        val triggerAtMillis = calendar.timeInMillis
+        val ac = AlarmClockInfo(triggerAtMillis, null)
+        alarmManager.setAlarmClock(ac, pendingIntent)
+
+        log("Exact hourly alarm set for: ${calendar.time}")
+    }
+
+
     private fun cancelInitialAlarm() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(this, AlarmReceiver::class.java).apply {
@@ -250,6 +300,18 @@ class EndlessService : Service() {
         alarmManager.cancel(pendingIntent)
         log("cancelHourlyAlarm")
     }
+
+    private fun cancelHourlyUpdateAtExactHour() {
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, AlarmReceiver::class.java).apply {
+            action = "HOURLY_EXACT_UPDATE_ACTION" // Acción usada en setHourlyUpdateAtExactHour()
+        }
+        val pendingIntent = PendingIntent.getBroadcast(this, 2, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        alarmManager.cancel(pendingIntent)
+        log("cancelHourlyUpdateAtExactHour")
+    }
+
 
     private val updateAlarmReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
@@ -287,7 +349,7 @@ class EndlessService : Service() {
     }
 
     private fun checkApi() {
-        val url = "https://www.d2emu.com/api/v1/tz"
+        val url = Login.URL
 
         try {
             Fuel.get(url)
@@ -332,6 +394,35 @@ class EndlessService : Service() {
         }
     }
 
+    private fun checkApiForNotification() {
+        val url = Login.URL
+
+        try {
+            Fuel.get(url)
+                .appendHeader("x-emu-username", Login.USERNAME)
+                .appendHeader("x-emu-token", Login.TOKEN)
+                .responseObject(TerrorZone.Deserializer()) { _, _, result ->
+                    val (terrorZone, error) = result
+                    if (terrorZone != null) {
+                        // Actualizar las variables tzCurrent y tzNext
+                        tzCurrent = buscarEnMapa(terrorZone.current[0])
+                        tzNext = buscarEnMapa(terrorZone.next[0])
+                        tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000)
+
+                        // Actualizar la notificación del fgService
+                        updateForegroundNotification()
+
+                        // Configurar la próxima actualización exacta en la siguiente hora en punto
+                        setHourlyUpdateAtExactHour()
+                    } else {
+                        log("[response error] ${error?.message}")
+                    }
+                }
+        } catch (e: Exception) {
+            log("Error making the request: ${e.message}")
+        }
+    }
+
     private fun milisegundosHastaMinuto(targetMinute: Int): Long {
         // Obtener la instancia actual del calendario
         val calendar = Calendar.getInstance()
@@ -356,12 +447,11 @@ class EndlessService : Service() {
         return milisegundosHastaMinuto
     }
 
-    private fun createNotification(): Notification {
+    private fun createNotificationChannel(){
         val notificationChannelId = "ENDLESS SERVICE CHANNEL"
 
         // Crear el NotificationChannel para API 26+ (Oreo y superior)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val channel = NotificationChannel(
                 notificationChannelId,
                 "Endless Service notifications channel",
@@ -373,29 +463,13 @@ class EndlessService : Service() {
                 enableVibration(true)
                 vibrationPattern = longArrayOf(100, 200, 300, 400, 500, 400, 300, 200, 400)
             }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
-
-        // Crear el PendingIntent
-        val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
-            PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
-        }
-
-        // Usar NotificationCompat.Builder para construir la notificación
-        val builder = NotificationCompat.Builder(this, notificationChannelId)
-            .setContentTitle("Foreground service of d2rTZ")
-//            .setContentText("d2rTZ-fgservices")
-            .setContentIntent(pendingIntent)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setTicker("Foreground service of d2rTZ")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-
-        // Crear la notificación
-        return builder.build()
     }
 
-    private fun createNotificationAlarm(next: String, nextTerrorTimeUtc: String) {
-        val notificationChannelId = "Zones channel"
+    private fun createNotificationAlarmChannel(){
+        val notificationChannelId = "ZONES CHANNEL"
 
         // Crear el NotificationChannel para API 26+ (Oreo y superior)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -421,6 +495,32 @@ class EndlessService : Service() {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
+    }
+
+    private fun createNotification(): Notification {
+        val notificationChannelId = "ENDLESS SERVICE CHANNEL"
+
+        // Crear el PendingIntent
+        val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
+            PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
+        }
+
+        // Usar NotificationCompat.Builder para construir la notificación
+        val builder = NotificationCompat.Builder(this, notificationChannelId)
+            .setContentTitle("Foreground service of d2rTZ")
+//            .setContentText("d2rTZ-fgservices")
+            .setContentIntent(pendingIntent)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setTicker("Foreground service of d2rTZ")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        // Crear la notificación
+        return builder.build()
+    }
+
+    private fun createNotificationAlarm(next: String, nextTerrorTimeUtc: String) {
+        val notificationChannelId = "ZONES CHANNEL"
 
         // Crear el PendingIntent
         val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
@@ -463,6 +563,34 @@ class EndlessService : Service() {
             Log.d("sendNotificationAlarm", "sendNotificationAlarm enviada")
             notify(2, notification)
         }
+    }
+
+    private fun updateForegroundNotification() {
+        val notificationChannelId = "ENDLESS SERVICE CHANNEL"
+
+
+        // Crear un PendingIntent para abrir la MainActivity al tocar la notificación
+        val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
+            PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
+        }
+
+        val simpleDateFormat = SimpleDateFormat("H:mm", Locale.FRANCE)
+        val dateString = simpleDateFormat.format(tzNextHour)
+        val nextTerrorTimeUtc = String.format("%s", dateString)
+
+        // Crear la nueva notificación con los valores actuales de tzCurrent y tzNext
+        val notification = NotificationCompat.Builder(this, notificationChannelId)
+            .setContentTitle(tzCurrent)
+            .setContentText("$nextTerrorTimeUtc $tzNext")
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOnlyAlertOnce(true)
+            .build()
+
+        // Actualizar la notificación del servicio en primer plano
+        val mNotificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        mNotificationManager.notify(1, notification)
     }
 
     /**

@@ -8,6 +8,7 @@ fun log(msg: String) {
 
 class Login {
     companion object {
+        const val URL = "https://www.d2emu.com/api/v1/tz"
         const val USERNAME = ""
         const val TOKEN = ""
     }
