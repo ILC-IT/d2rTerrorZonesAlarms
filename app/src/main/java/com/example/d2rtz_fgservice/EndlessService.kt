@@ -21,6 +21,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -38,11 +39,20 @@ import java.util.Locale
 class EndlessService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
-    private var isServiceStarted = false
-    private var tzCurrent = ""
-    private var tzNext = ""
-    private var tzNextHour = 0L
-    private var minutoParaAlarmas: Int = 30 // Minuto predeterminado para alarmas
+    private var isServiceStarted: Boolean = false
+    private var tzCurrent: String = ""
+    private var tzNext: String = ""
+    private var tzNextHour: Long = 0L
+    private var tzNextAvailableHour: Long = 0L
+    private var delayApi: Int = Login.DELAYAPIDEFAULT
+    private var minutoParaAlarmas: Int = Login.MINUTOPARAALARMASDEFAULT
+    private var minutoParaNotif: Int = Login.MINUTOPARANOTIF
+
+    companion object {
+        // Para que sean accedidas desde MainActivity
+        var alarmaInfo: String = "Alarma"
+        var notifinfo: String = "Notif"
+    }
 
     override fun onBind(intent: Intent): IBinder? {
         log("Some component want to bind with the service")
@@ -75,6 +85,7 @@ class EndlessService : Service() {
         return START_STICKY
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate() {
         super.onCreate()
         log("The service has been created".uppercase())
@@ -86,13 +97,20 @@ class EndlessService : Service() {
         startForeground(1, notification)
         // Registrar el BroadcastReceiver para actualizar las alarmas
         val filter = IntentFilter("UPDATE_ALARM_ACTION")
-        registerReceiver(updateAlarmReceiver, filter)
+        registerReceiver(updateAlarmReceiver, filter, RECEIVER_NOT_EXPORTED)
+        val anotherFilter = IntentFilter("UPDATE_NOTIF_ACTION")
+        registerReceiver(updateAlarmReceiver, anotherFilter, RECEIVER_NOT_EXPORTED)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         // Desregistrar el BroadcastReceiver
         unregisterReceiver(updateAlarmReceiver)
+//        // Borro sharedpreferences
+//        val pref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+//        val editor = pref.edit()
+//        editor.clear()
+//        editor.apply()
         log("The service has been destroyed".uppercase())
         Toast.makeText(this, "Service destroyed", Toast.LENGTH_SHORT).show()
     }
@@ -218,7 +236,12 @@ class EndlessService : Service() {
 //        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
         val ac = AlarmClockInfo(triggerAtMillis, null)
         alarmManager.setAlarmClock(ac, pendingIntent)
-        Toast.makeText(this, "Alarma a las ${calendar.time}", Toast.LENGTH_SHORT).show()
+
+        // Formateo de la hora para el toast
+        val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
+        val formattedTime = simpleDateFormat.format(calendar.time)
+        alarmaInfo = "Alarma: $formattedTime"
+        Toast.makeText(this, "Alarma: $formattedTime", Toast.LENGTH_SHORT).show()
         log("Initial alarm set for: ${calendar.time}")
     }
 
@@ -250,18 +273,20 @@ class EndlessService : Service() {
         log("Hourly alarm set for: ${calendar.time}")
     }
 
-    private fun setHourlyUpdateAtExactHour() {
+    private fun setHourlyUpdateAtExactHour(minutoParaNotif: Int) {
+        // Alarma para actualizar la notificación del fg 1 vez cada hora cada minuto minutoParaNotif
+
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(this, AlarmReceiver::class.java).apply {
             action = "HOURLY_EXACT_UPDATE_ACTION" // Nueva acción específica para la alarma horaria en punto
         }
         val pendingIntent = PendingIntent.getBroadcast(this, 2, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        // Obtener la hora actual y programar la alarma para el próximo "XX:01"
+        // Obtener la hora actual y programar la alarma para el próximo "XX:minutoParaNotif"
         val calendar = Calendar.getInstance()
 
-        // Establecer el minuto a 1 para la próxima hora en punto
-        calendar.set(Calendar.MINUTE, 1)
+        // Establecer el minuto a minutoParaNotif para la próxima hora en punto
+        calendar.set(Calendar.MINUTE, minutoParaNotif)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
 
@@ -275,6 +300,11 @@ class EndlessService : Service() {
         val ac = AlarmClockInfo(triggerAtMillis, null)
         alarmManager.setAlarmClock(ac, pendingIntent)
 
+        // Formateo de la hora para el toast
+        val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
+        val formattedTime = simpleDateFormat.format(calendar.time)
+        notifinfo = "Checkeo notificación: $formattedTime"
+        Toast.makeText(this, "Checkeo notificación: $formattedTime", Toast.LENGTH_SHORT).show()
         log("Exact hourly alarm set for: ${calendar.time}")
     }
 
@@ -318,11 +348,22 @@ class EndlessService : Service() {
             log("Broadcast received in updateAlarmReceiver")
             if (intent?.action == "UPDATE_ALARM_ACTION") {
                 val newMinute = intent.getIntExtra("NEW_MINUTE", -1)
-                if (newMinute in 0..59) {
+                if (newMinute in delayApi..59) {
                     updateAlarm(newMinute)
                     log("Minuto para alarma es $newMinute")
                 } else {
+                    Toast.makeText(context, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
                     log("Minuto para alarma no válido.")
+                }
+            }
+            else if (intent?.action == "UPDATE_NOTIF_ACTION") {
+                val newMinute = intent.getIntExtra("NEW_NOTIF_MINUTE", -1)
+                if (newMinute in delayApi..59) {
+                    updateAlarmNotif(newMinute)
+                    log("Minuto para notificación es $newMinute")
+                } else {
+                    Toast.makeText(context, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
+                    log("Minuto para notificación no válido.")
                 }
             } else {
                 log("Action not recognized: ${intent?.action}")
@@ -339,13 +380,30 @@ class EndlessService : Service() {
         cancelHourlyAlarm()
 
         // Guardar el nuevo valor en SharedPreferences
-        val preferences = getSharedPreferences("AlarmPreferences", MODE_PRIVATE)
+        val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
         val editor = preferences.edit()
         editor.putInt("minutoParaAlarmas", minutoParaAlarmas)
         editor.apply()
 
         // Configurar la nueva alarma inicial
         setInitialAlarm(minutoParaAlarmas)
+    }
+
+    private fun updateAlarmNotif(minutosParaNotif: Int) {
+        // Actualizar la variable global
+        this.minutoParaNotif = minutosParaNotif
+
+        // Cancelar cualquier alarma horaria existente cuando el usuario cambia minutoParaNotif
+        cancelHourlyUpdateAtExactHour()
+
+        // Guardar el nuevo valor en SharedPreferences
+        val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+        val editor = preferences.edit()
+        editor.putInt("minutoParaNotif", minutoParaNotif)
+        editor.apply()
+
+        // Configurar la nueva alarma inicial
+        setHourlyUpdateAtExactHour(minutoParaNotif)
     }
 
     private fun checkApi() {
@@ -358,14 +416,43 @@ class EndlessService : Service() {
                 .responseObject(TerrorZone.Deserializer())
                 { _, _, result ->
                     val (terrorZone, error) = result
+
+                    if (error != null) {
+                        log("[response error] ${error.message}")
+                        return@responseObject
+                    }
+
                     if (terrorZone != null) {
-//                        log("[response terrorZone] ${String(terrorZone)}")
-                        tzCurrent = buscarEnMapa(terrorZone.current[0])
-                        tzNext = buscarEnMapa(terrorZone.next[0])
-                        tzNextHour = terrorZone .nextTerrorTimeUtc.times(1000)
-                        val simpleDateFormat = SimpleDateFormat("H:mm", Locale.FRANCE)
+                        // Manejo de errores desde la respuesta deserializada
+                        if (terrorZone.error != null) {
+                            log("checkApi API Error: ${terrorZone.error}")
+                            return@responseObject
+                        }
+
+                        // Procesar datos válidos
+                        // Validar listas vacías antes de acceder
+                        tzCurrent = if (terrorZone.current.isNotEmpty()) {
+                            buscarEnMapa(terrorZone.current[0])
+                        } else {
+                            log("Warning: current zones list is empty")
+                            "Empty current zone"
+                        }
+
+                        tzNext = if (terrorZone.next.isNotEmpty()) {
+                            buscarEnMapa(terrorZone.next[0])
+                        } else {
+                            log("Warning: next zones list is empty")
+                            "Empty next zone"
+                        }
+                        tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000) // ms
+                        // Le sumo 1,05 minutos para dar un margen por si se retrasa alguna alarma
+                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 65000 // ms
+                        val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
                         val dateString = simpleDateFormat.format(tzNextHour)
+                        val dateStringAvailable = simpleDateFormat.format(tzNextAvailableHour)
                         val nextTerrorTimeUtc = String.format("%s", dateString)
+                        val nextTerrorTimeUtcAvailable = String.format("%s", dateStringAvailable)
+                        delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
 
                         // Obtener las zonas seleccionadas en MainActivty desde SharedPreferences
                         val sharedPreferences = applicationContext.getSharedPreferences("EndlessService", Context.MODE_PRIVATE)
@@ -379,14 +466,17 @@ class EndlessService : Service() {
                                     android.Manifest.permission.POST_NOTIFICATIONS
                                 ) == PackageManager.PERMISSION_GRANTED
                             ) {
-                                createNotificationAlarm(tzNext, nextTerrorTimeUtc)
+                                val currentTimeMillis = System.currentTimeMillis() // Hora actual en milisegundos
+                                if (currentTimeMillis < tzNextAvailableHour) {
+                                    createNotificationAlarm(tzNext, "Wait until $nextTerrorTimeUtcAvailable")
+                                } else {
+                                    createNotificationAlarm(tzNext, nextTerrorTimeUtc)
+                                }
                                 log("Notification with alarm 32 done")
                             } else {
                                 log("Notification with alarm 32 permission not granted")
                             }
                         }
-                    } else {
-                        log("[response error] ${error?.message}")
                     }
                 }
         } catch (e: Exception) {
@@ -403,24 +493,134 @@ class EndlessService : Service() {
                 .appendHeader("x-emu-token", Login.TOKEN)
                 .responseObject(TerrorZone.Deserializer()) { _, _, result ->
                     val (terrorZone, error) = result
+
+                    if (error != null) {
+                        log("[response error] ${error.message}")
+                        return@responseObject
+                    }
+
                     if (terrorZone != null) {
-                        // Actualizar las variables tzCurrent y tzNext
-                        tzCurrent = buscarEnMapa(terrorZone.current[0])
-                        tzNext = buscarEnMapa(terrorZone.next[0])
-                        tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000)
+                        // Manejo de errores desde la respuesta deserializada
+                        if (terrorZone.error != null) {
+                            log("checkApiForNotification API Error: ${terrorZone.error}")
+                            tzCurrent = terrorZone.error
+                            tzNext = terrorZone.error
+                            delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
+                            tzNextHour = obtenerHoraUnixMasUnaHora(minutoParaNotif)
+                            val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
+                            val dateString = simpleDateFormat.format(tzNextHour)
+                            val nextTerrorTimeUtc = String.format("%s", dateString)
+                            updateForegroundNotification(nextTerrorTimeUtc)
+                            setHourlyUpdateAtExactHour(minutoParaNotif)
+                            return@responseObject
+                        }
+
+                        // Procesar datos válidos
+                        // Validar listas vacías antes de acceder
+                        tzCurrent = if (terrorZone.current.isNotEmpty()) {
+                            buscarEnMapa(terrorZone.current[0])
+                        } else {
+                            log("Warning: current zones list is empty")
+                            "Empty current zone"
+                        }
+
+                        tzNext = if (terrorZone.next.isNotEmpty()) {
+                            buscarEnMapa(terrorZone.next[0])
+                        } else {
+                            log("Warning: next zones list is empty")
+                            "Empty next zone"
+                        }
+                        tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000) // ms
+                        // Le sumo 1,05 minutos para dar un margen por si se retrasa alguna alarma
+                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 65000 // ms
+                        val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
+                        val dateString = simpleDateFormat.format(tzNextHour)
+                        val dateStringAvailable = simpleDateFormat.format(tzNextAvailableHour)
+                        val nextTerrorTimeUtc = String.format("%s", dateString)
+                        val nextTerrorTimeUtcAvailable = String.format("%s", dateStringAvailable)
+                        delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
 
                         // Actualizar la notificación del fgService
-                        updateForegroundNotification()
+                        val currentTimeMillis = System.currentTimeMillis() // Hora actual en milisegundos
+                        var minuteSplit = nextTerrorTimeUtcAvailable.split(":")[1].toInt() // Cojo los minutos
+                        val calendar = Calendar.getInstance()
+                        calendar.timeInMillis = currentTimeMillis
+                        val currentMinutes = calendar.get(Calendar.MINUTE) // Obtener los minutos actuales
+                        if (minuteSplit != delayApi){
+                            minuteSplit = delayApi
+                            // Esto es para igualar el minuto de nextTerrorTimeUtcAvailable con el delay
+                            // ya que puede devolver delay = 21 y el minuteSplit = 20
+                        }
+                        val salida = if (currentMinutes < minuteSplit) {
+//                            log("a $currentTimeMillis $tzNextAvailableHour")
+                            if (minutoParaNotif < minuteSplit) {
+//                                log("currentTimeMillis < tzNextAvailableHour, minutoParaNotif < minuteSplit")
+                                "Wait until $nextTerrorTimeUtcAvailable"
+                            }else{
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, minutoParaNotif)
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis < tzNextAvailableHour, minutoParaNotif > minuteSplit")
+                                "Wait until $nextupdatedEpochUtc"
+                            }
+                        } else {
+//                            log("b $currentTimeMillis $tzNextAvailableHour")
+                            if (currentMinutes < minutoParaNotif) {
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, minutoParaNotif)
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes < editTextValue")
+                                "Wait until $nextupdatedEpochUtc"
+                            }else{
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes >= editTextValue")
+                                nextTerrorTimeUtc
+                            }
+                        }
+                        updateForegroundNotification(salida)
 
+                        // Configurar la próxima actualización exacta en la siguiente hora en punto + 1 min
+                        if (currentMinutes > minutoParaNotif) {
+                            // Esto es para que haga una notif a xx:01
+                            setHourlyUpdateAtExactHour(1)
+                            return@responseObject
+                        }
                         // Configurar la próxima actualización exacta en la siguiente hora en punto
-                        setHourlyUpdateAtExactHour()
-                    } else {
-                        log("[response error] ${error?.message}")
+                        if(minutoParaNotif > delayApi) {
+                            setHourlyUpdateAtExactHour(minutoParaNotif)
+                        }else{
+                            setHourlyUpdateAtExactHour(delayApi)
+                        }
                     }
                 }
         } catch (e: Exception) {
             log("Error making the request: ${e.message}")
         }
+    }
+
+    private fun obtenerHoraUnixMasUnaHora(delayApi: Int): Long {
+        // Obtengo la hora actual y le sumo 1 a la hora y retorno el tiempo en formato Unix
+
+        // Obtener la instancia del calendario con la zona horaria local
+        val calendario = Calendar.getInstance()
+
+        // Sumar 1 hora
+        calendario.add(Calendar.HOUR_OF_DAY, 1)
+
+        // Establecer los minutos a delayApi, segundos y milisegundos a cero
+        calendario.set(Calendar.MINUTE, delayApi)
+        calendario.set(Calendar.SECOND, 0)
+        calendario.set(Calendar.MILLISECOND, 0)
+
+        // Convertir a tiempo Unix (Epoch time)
+        return calendario.timeInMillis // / 1000 // Dividir entre 1000 para obtener segundos
     }
 
     private fun milisegundosHastaMinuto(targetMinute: Int): Long {
@@ -565,18 +765,13 @@ class EndlessService : Service() {
         }
     }
 
-    private fun updateForegroundNotification() {
+    private fun updateForegroundNotification(nextTerrorTimeUtc: String) {
         val notificationChannelId = "ENDLESS SERVICE CHANNEL"
-
 
         // Crear un PendingIntent para abrir la MainActivity al tocar la notificación
         val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
             PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
         }
-
-        val simpleDateFormat = SimpleDateFormat("H:mm", Locale.FRANCE)
-        val dateString = simpleDateFormat.format(tzNextHour)
-        val nextTerrorTimeUtc = String.format("%s", dateString)
 
         // Crear la nueva notificación con los valores actuales de tzCurrent y tzNext
         val notification = NotificationCompat.Builder(this, notificationChannelId)
@@ -591,6 +786,7 @@ class EndlessService : Service() {
         // Actualizar la notificación del servicio en primer plano
         val mNotificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         mNotificationManager.notify(1, notification)
+        Log.d("updateForegroundNotification", "updateForegroundNotification enviada")
     }
 
     /**
@@ -616,7 +812,7 @@ class EndlessService : Service() {
             "41" to "Stony Tomb - Rocky Waste",
             "42" to "Dry Hills - Halls of the Dead",
             "43" to "Far Oasis",
-            "44" to "Lost City - Valley of Snakes - Claw Viper Temple",
+            "44" to "Lost City - Valley of Snakes", //- Claw Viper Temple",
             "47" to "Lut Gholein Sewers",
             "65" to "Ancient Tunnels",
             "66" to "Tal Rasha's Tombs",
@@ -630,7 +826,7 @@ class EndlessService : Service() {
             "104" to "Outer Steppes - Plains of Despair",
             "106" to "City of the Damned - River of Flame",
             "108" to "Chaos Sanctuary",
-            "110" to "Bloody Foothills - Frigid Highlands - Abbadon",
+            "110" to "Bloody Foothills - Frigid Highlands", //- Abbadon",
             "112" to "Arreat Plateau - Pit of Acheron",
             "113" to "Crystalline Passage - Frozen River",
             "115" to "Glacial Trail - Drifter Cavern" ,

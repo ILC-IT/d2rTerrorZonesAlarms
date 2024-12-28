@@ -8,7 +8,9 @@
     <string name="show_list">Seleccionar zonas OP</string>
     <string name="close_list">Cerrar</string>
     <string name="borrar_lista">Borrar</string>
-    <string name="seleccionar_todas">Seleccionar todas</string>
-    <string name="minuto_0_59" translatable="false">0-59</string>
-    <string name="set_alarm">Set Alarma</string>
+    <string name="seleccionar_todas">Todas</string>
+    <string name="minuto_0_59" translatable="false">21-59</string>
+    <string name="set_alarm">ALARMA</string>
+    <string name="set_noti">NOTIF</string>
+    <string name="version_app_info">App version info</string>
 </resources>

@@ -8,6 +8,9 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="red">#FF4040</color>
+    <color name="green">#3B853B</color>
+    <color name="redStop">#C73A2B</color>
+    <color name="scrollbar">#FF4081</color>
 
     <color name="mode">#FFFFFF</color>
     <color name="mode_secondary">#BAB7B7</color>

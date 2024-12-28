@@ -12,6 +12,7 @@ import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -20,6 +21,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.github.kittinunf.fuel.Fuel
+import java.util.Calendar
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -43,8 +45,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnClearList: Button
     private lateinit var btnSelectAllList: Button
     private lateinit var btnSetAlarm: Button
+    private lateinit var btnSetNotif: Button
+    private lateinit var btnInfo: ImageButton
     private lateinit var btnListLayout: LinearLayout
     private lateinit var minuteInput: EditText
+    private lateinit var minuteNotifInput: EditText
     private val items = listOf(
         "Throne of Destruction",
         "Tal Rasha's Tombs",
@@ -57,13 +62,13 @@ class MainActivity : ComponentActivity() {
         "Arcane Sanctuary",
         "Cold Plains - Cave",
         "Lut Gholein Sewers",
-        "Lost City - Valley of Snakes - Claw Viper Temple",
+        "Lost City - Valley of Snakes", // - Claw Viper Temple",
         "Ancient's Way - Icy Cellar",
         "Crystalline Passage - Frozen River",
         "Glacial Trail - Drifter Cavern",
         "Outer Steppes - Plains of Despair",
         "City of the Damned - River of Flame",
-        "Bloody Foothills - Frigid Highlands - Abbadon",
+        "Bloody Foothills - Frigid Highlands", // - Abbadon",
         "Arreat Plateau - Pit of Acheron",
         "Nihlathak's Temple and Halls",
         "Kurast Bazaar - Temples",
@@ -85,6 +90,7 @@ class MainActivity : ComponentActivity() {
     )
     private val selectedItems = mutableSetOf<String>()
     private lateinit var adapter: ItemsAdapter
+    private var delayApi: Int = Login.DELAYAPIDEFAULT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -99,7 +105,10 @@ class MainActivity : ComponentActivity() {
         btnSelectAllList = findViewById(R.id.selectAllListButton)
         btnListLayout = findViewById(R.id.buttonsListLayout)
         btnSetAlarm = findViewById(R.id.setAlarmButton)
+        btnSetNotif = findViewById(R.id.setNotifButton)
         minuteInput = findViewById(R.id.minuteInput)
+        minuteNotifInput = findViewById(R.id.minuteNotifInput)
+        btnInfo = findViewById(R.id.infoButton)
         title = "Endless Service"
 
         loadSelectedItems() // Recuperar selectedItems de SharedPreferences
@@ -125,7 +134,7 @@ class MainActivity : ComponentActivity() {
             selectAllItemsList()
         }
         // Boton Actualizar
-        findViewById<Button>(R.id.idActualizar).let {
+        findViewById<ImageButton>(R.id.idActualizar).let {
             it.setOnClickListener {
                 checkApiImmediately()
                 Log.d("MainActivity", "Clicked on update button")
@@ -156,14 +165,15 @@ class MainActivity : ComponentActivity() {
             }
 
             val inputText = minuteInput.text.toString()
+            minuteInput.hint = "$delayApi-59"
             try {
                 val selectedMinute = if (inputText.isEmpty()) {
-                    minuteInput.setText("30")
-                    30 // Valor predeterminado si el EditText está vacío
+                    minuteInput.setText(String.format(Locale.getDefault(), "%d", Login.MINUTOPARAALARMASDEFAULT))
+                    Login.MINUTOPARAALARMASDEFAULT // Valor predeterminado si el EditText está vacío
                 } else {
                     inputText.toInt()
                 }
-                if (selectedMinute in 0..59) {
+                if (selectedMinute in delayApi..59) {
                     // Crear un Intent para enviar al servicio en ejecución y actualizar la alarma
                     val updateIntent = Intent().apply {
                         action = "UPDATE_ALARM_ACTION"
@@ -172,11 +182,51 @@ class MainActivity : ComponentActivity() {
                     sendBroadcast(updateIntent)
                     log("Broadcast sent with minuto alarma seleccionado = $selectedMinute")
                 } else {
-                    Toast.makeText(this, "Input number 0 - 59", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: NumberFormatException) {
                 Toast.makeText(this, "Wrong input!", Toast.LENGTH_SHORT).show()
             }
+        }
+        // Boton setNotif Button Service
+        btnSetNotif.setOnClickListener {
+            // Verificar si el servicio está activo
+            if (getServiceState(this) == ServiceState.STOPPED) {
+                Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer la notificación.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val inputText = minuteNotifInput.text.toString()
+            minuteNotifInput.hint = "$delayApi-59"
+            try {
+                val selectedMinute = if (inputText.isEmpty()) {
+                    minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", delayApi))
+                    Login.DELAYAPIDEFAULT // Valor predeterminado si el EditText está vacío
+                } else {
+                    inputText.toInt()
+                }
+                if (selectedMinute in delayApi..59) {
+                    // Crear un Intent para enviar al servicio en ejecución y actualizar la notificacion
+                    val updateIntent = Intent().apply {
+                        action = "UPDATE_NOTIF_ACTION"
+                        putExtra("NEW_NOTIF_MINUTE", selectedMinute)
+                    }
+                    sendBroadcast(updateIntent)
+                    log("Broadcast sent with minuto notificación seleccionado = $selectedMinute")
+                } else {
+                    Toast.makeText(this, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: NumberFormatException) {
+                Toast.makeText(this, "Wrong input!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Configurar el click listener
+        btnInfo.setOnClickListener {
+            // Obtener la versión de la app y mostrarla en un Toast
+            val version = getAppVersion(this)
+            val resultado = "App Version: $version\n${EndlessService.alarmaInfo}\n${EndlessService.notifinfo}"
+            Toast.makeText(this, resultado, Toast.LENGTH_SHORT).show()
         }
 
         // Solicitar permiso para mostrar notificaciones en Android 13 y superior
@@ -197,8 +247,10 @@ class MainActivity : ComponentActivity() {
         checkApiImmediately()
         // Recuperar el valor del minuto para alarmas de SharedPreferences
         val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
-        val savedMinute = preferences.getInt("minutoParaAlarmas", 30) // Valor predeterminado: 30
-        minuteInput.setText(savedMinute.toString())
+        val savedMinute = preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT) // Valor predeterminado: 30
+        val savedNotifMinute = preferences.getInt("minutoParaNotif", Login.DELAYAPIDEFAULT) // Valor predeterminado: 20
+        minuteInput.setText(String.format(Locale.getDefault(), "%d", savedMinute))
+        minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", savedNotifMinute))
     }
 
     // Clase para la lista de zonas en el desplegable y su vista
@@ -260,6 +312,7 @@ class MainActivity : ComponentActivity() {
         var tzCurrent: String
         var tzNext: String
         var tzNextHour: Long
+        var tzNextAvailableHour: Long
 
         try {
             Fuel.get(url)
@@ -267,22 +320,90 @@ class MainActivity : ComponentActivity() {
                 .appendHeader("x-emu-token", Login.TOKEN)
                 .responseObject(TerrorZone.Deserializer())
                 { _, _, result ->
-                    val (terrorZone , error) = result
-                    if (terrorZone  != null) {
-                        tzCurrent = buscarEnMapa(terrorZone .current[0])
-                        tzNext = buscarEnMapa(terrorZone .next[0])
-                        tzNextHour = terrorZone .nextTerrorTimeUtc.times(1000)
-                        val simpleDateFormat = SimpleDateFormat("H:mm", Locale.FRANCE)
+                    val (terrorZone, error) = result
+
+                    if (error != null) {
+                        log("[response error] ${error.message}")
+                        msgTzCurrent.text = String.format(Locale.getDefault(), "%s", "Error fetching data: ${error.message}")
+                        msgTzNext.text =  String.format(Locale.getDefault(), "%s", "Error fetching data: ${error.message}")
+                        return@responseObject
+                    }
+
+                    if (terrorZone != null) {
+                        // Manejar el caso de error desde la respuesta deserializada
+                        if (terrorZone.error != null) {
+                            log("checkApiImmediately API Error: ${terrorZone.error}")
+                            msgTzCurrent.text = String.format(Locale.getDefault(), "%s", "Error: ${terrorZone.error}")
+                            msgTzNext.text = ""
+                            return@responseObject
+                        }
+
+                        // Procesar datos válidos
+                        // Validar listas vacías antes de acceder
+                        tzCurrent = if (terrorZone.current.isNotEmpty()) {
+                            buscarEnMapa(terrorZone.current[0])
+                        } else {
+                            log("Warning: current zones list is empty")
+                            "Empty current zone"
+                        }
+
+                        tzNext = if (terrorZone.next.isNotEmpty()) {
+                            buscarEnMapa(terrorZone.next[0])
+                        } else {
+                            log("Warning: next zones list is empty")
+                            "Empty next zone"
+                        }
+                        tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000) // ms
+                        // Le sumo 1,05 minutos para dar un margen por si se retrasa alguna alarma
+                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 65000 // ms
+                        val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
                         val dateString = simpleDateFormat.format(tzNextHour)
-//                        log("current: $tzCurrent $tzNext $tzNextHour")
+                        val dateStringAvailable = simpleDateFormat.format(tzNextAvailableHour)
                         val nextTerrorTimeUtc = String.format("%s", dateString)
-                        val salida = "$nextTerrorTimeUtc $tzNext"
+                        val nextTerrorTimeUtcAvailable = String.format("%s", dateStringAvailable)
+                        delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
+//                        log("current: $tzCurrent $tzNext $tzNextHour $tzNextAvailableHour $delayApi")
+
+                        val currentTimeMillis = System.currentTimeMillis() // Hora actual en milisegundos
+                        val minuteSplit = nextTerrorTimeUtcAvailable.split(":")[1].toInt() // Cojo los minutos
+                        val editTextValue = minuteNotifInput.text.toString() // Obtener el EditText como String
+                        val calendar = Calendar.getInstance()
+                        calendar.timeInMillis = currentTimeMillis
+                        val currentMinutes = calendar.get(Calendar.MINUTE) // Obtener los minutos actuales
+//                        val salida = if (currentTimeMillis < tzNextAvailableHour) {
+                        val salida = if (currentMinutes < minuteSplit) {
+                            if (editTextValue.toInt() < minuteSplit) {
+//                                log("currentTimeMillis < tzNextAvailableHour, editTextValue < minuteSplit")
+                                "Wait until $nextTerrorTimeUtcAvailable $tzNext"
+                            }else{
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, editTextValue.toInt())
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis < tzNextAvailableHour, editTextValue > minuteSplit")
+                                "Wait until $nextupdatedEpochUtc $tzNext"
+                            }
+                        } else {
+                            if (currentMinutes < editTextValue.toInt()) {
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, editTextValue.toInt())
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes < editTextValue")
+                                "Wait until $nextupdatedEpochUtc $tzNext"
+                            }else{
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes >= editTextValue")
+                                "$nextTerrorTimeUtc $tzNext"
+                            }
+                        }
                         msgTzCurrent.text = tzCurrent
                         msgTzNext.text = salida
-                    } else {
-                        msgTzCurrent.text = "${error?.message}"
-                        msgTzNext.text = "${error?.message}"
-                        log("[response error] ${error?.message}")
                     }
                 }
         } catch (e: Exception) {
@@ -345,6 +466,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun getAppVersion(context: Context): String {
+        return try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            // Usar longVersionCode para API >= 28, y versionCode para versiones más antiguas
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode.toString()
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode.toString()
+            }
+            "Version ${packageInfo.versionName} ($versionCode)"
+        } catch (e: Exception) {
+            "Unknown Version"
+        }
+    }
+
+
     /**
     Función que busca un valor en un mapa usando una clave dada.
     @param clave Clave que se usará para buscar en el mapa.
@@ -369,7 +507,7 @@ class MainActivity : ComponentActivity() {
             "41" to "Stony Tomb - Rocky Waste",
             "42" to "Dry Hills - Halls of the Dead",
             "43" to "Far Oasis",
-            "44" to "Lost City - Valley of Snakes - Claw Viper Temple",
+            "44" to "Lost City - Valley of Snakes", // - Claw Viper Temple",
             "47" to "Lut Gholein Sewers",
             "65" to "Ancient Tunnels",
             "66" to "Tal Rasha's Tombs",
@@ -383,7 +521,7 @@ class MainActivity : ComponentActivity() {
             "104" to "Outer Steppes - Plains of Despair",
             "106" to "City of the Damned - River of Flame",
             "108" to "Chaos Sanctuary",
-            "110" to "Bloody Foothills - Frigid Highlands - Abbadon",
+            "110" to "Bloody Foothills - Frigid Highlands", // - Abbadon",
             "112" to "Arreat Plateau - Pit of Acheron",
             "113" to "Crystalline Passage - Frozen River",
             "115" to "Glacial Trail - Drifter Cavern",
