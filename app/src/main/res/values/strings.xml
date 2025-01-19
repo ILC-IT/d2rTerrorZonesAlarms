@@ -13,4 +13,7 @@
     <string name="set_alarm">ALARMA</string>
     <string name="set_noti">NOTIF</string>
     <string name="version_app_info">App version info</string>
+    <string name="show_history">H</string>
+    <string name="closeDB">Cerrar</string>
+    <string name="borrarDB">Borrar DB</string>
 </resources>

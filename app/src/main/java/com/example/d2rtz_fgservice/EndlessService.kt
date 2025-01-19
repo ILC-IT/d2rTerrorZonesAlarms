@@ -27,6 +27,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.github.kittinunf.fuel.Fuel
+import database.AppDatabase
+import database.TerrorZoneEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,7 +36,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-
 
 class EndlessService : Service() {
 
@@ -52,6 +53,7 @@ class EndlessService : Service() {
         // Para que sean accedidas desde MainActivity
         var alarmaInfo: String = "Alarma"
         var notifinfo: String = "Notif"
+        var sizeDBBytes: Long = 0
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -304,7 +306,7 @@ class EndlessService : Service() {
         val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
         val formattedTime = simpleDateFormat.format(calendar.time)
         notifinfo = "Checkeo notificación: $formattedTime"
-        Toast.makeText(this, "Checkeo notificación: $formattedTime", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, notifinfo, Toast.LENGTH_SHORT).show()
         log("Exact hourly alarm set for: ${calendar.time}")
     }
 
@@ -457,6 +459,23 @@ class EndlessService : Service() {
                         // Obtener las zonas seleccionadas en MainActivty desde SharedPreferences
                         val sharedPreferences = applicationContext.getSharedPreferences("EndlessService", Context.MODE_PRIVATE)
                         val selectedItems = sharedPreferences.getStringSet("selectedItems", emptySet())?.toList()
+
+                        // Insertar zona actual y hora en la base de datos
+                        // Esto va a meter la primera zona cuando se cumpla el minuto de "ALARMA". Si ya ha pasado meterá la de la siguiente hora
+                        CoroutineScope(Dispatchers.IO).launch {
+                            val database = AppDatabase.getInstance(this@EndlessService)
+
+                            // Si queremos que se borren las zonas de hace más de 5 días de antigüedad
+                            val oldZonesToDelete = System.currentTimeMillis() - DBConfig.OLDZONESTODELETE
+                            deleteOldZones(database, oldZonesToDelete)
+
+                            // Insertar nueva zona si no contiene "Empty" y no está vacía
+                            insertNewZone(database, tzCurrent)
+
+                            // Calculamos tamaño de la DB
+                            sizeDBBytes = getDBTotalSize(this@EndlessService)
+                            log("tamaño de la DB en bytes: $sizeDBBytes")
+                        }
 
                         if (isNameInSelectedItems(selectedItems ?: listOf(), tzNext)) {
                             // Verificar permisos y enviar notificación
@@ -623,30 +642,6 @@ class EndlessService : Service() {
         return calendario.timeInMillis // / 1000 // Dividir entre 1000 para obtener segundos
     }
 
-    private fun milisegundosHastaMinuto(targetMinute: Int): Long {
-        // Obtener la instancia actual del calendario
-        val calendar = Calendar.getInstance()
-
-        // Obtener el minuto actual
-        val currentMinute = calendar.get(Calendar.MINUTE)
-
-        // Ajustar la hora y los minutos del calendario al minuto objetivo
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-
-        // Si el minuto objetivo ya ha pasado en esta hora, ajusta a la siguiente hora
-        if (targetMinute <= currentMinute) {
-            calendar.add(Calendar.HOUR_OF_DAY, 1)
-        }
-
-        calendar.set(Calendar.MINUTE, targetMinute)
-
-        // Calcular la diferencia en milisegundos entre el tiempo actual y el tiempo objetivo
-        val milisegundosHastaMinuto = calendar.timeInMillis - System.currentTimeMillis()
-
-        return milisegundosHastaMinuto
-    }
-
     private fun createNotificationChannel(){
         val notificationChannelId = "ENDLESS SERVICE CHANNEL"
 
@@ -789,62 +784,34 @@ class EndlessService : Service() {
         Log.d("updateForegroundNotification", "updateForegroundNotification enviada")
     }
 
-    /**
-    Función que busca un valor en un mapa usando una clave dada.
-    @param clave Clave que se usará para buscar en el mapa.
-    @return El valor correspondiente a la clave dada, o un mensaje de error si la clave no existe.
-     */
-    private fun buscarEnMapa(clave: String): String {
-
-        val mapa = mapOf(
-            "2" to "Blood Moor - Den of Evil",
-            "3" to "Cold Plains - Cave",
-            "4" to "Stony Field",
-            "5" to "Darkwood - Underground Passage",
-            "6" to "Black Marsh - The Hole",
-            "12" to "Pit",
-            "17" to "Burial Grounds - Crypt - Mausoleum",
-            "20" to "Forgotten Tower",
-            "28" to "Jail - Barracks",
-            "33" to "Cathedral - Catacombs",
-            "38" to "Tristram",
-            "39" to "Moo Moo Farm",
-            "41" to "Stony Tomb - Rocky Waste",
-            "42" to "Dry Hills - Halls of the Dead",
-            "43" to "Far Oasis",
-            "44" to "Lost City - Valley of Snakes", //- Claw Viper Temple",
-            "47" to "Lut Gholein Sewers",
-            "65" to "Ancient Tunnels",
-            "66" to "Tal Rasha's Tombs",
-            "74" to "Arcane Sanctuary",
-            "76" to "Spider Forest - Spider Cavern",
-            "77" to "Great Marsh",
-            "78" to "Flayer Jungle and Dungeon",
-            "80" to "Kurast Bazaar - Temples",
-            "83" to "Travincal",
-            "100" to "Durance of Hate",
-            "104" to "Outer Steppes - Plains of Despair",
-            "106" to "City of the Damned - River of Flame",
-            "108" to "Chaos Sanctuary",
-            "110" to "Bloody Foothills - Frigid Highlands", //- Abbadon",
-            "112" to "Arreat Plateau - Pit of Acheron",
-            "113" to "Crystalline Passage - Frozen River",
-            "115" to "Glacial Trail - Drifter Cavern" ,
-            "118" to "Ancient's Way - Icy Cellar",
-            "121" to "Nihlathak's Temple and Halls",
-            "128" to "Throne of Destruction",
-        )
-
-        return mapa[clave] ?: "Zona no encontrada"
+    private suspend fun deleteOldZones(database: AppDatabase, tiempo: Long) {
+        database.terrorZoneDao().deleteOldZones(tiempo)
+        log("Zonas antiguas eliminadas.")
     }
 
-    /**
-    Función que busca si existe una string dentro de una lista
-    @param selectedItems Lista que se usará para buscar dentro de ella
-    @param zonaBuscada Zona a buscar
-    @return True o false segun la zona buscada exista o no
-     */
-    private fun isNameInSelectedItems(selectedItems: List<String>, zonaBuscada: String): Boolean {
-        return selectedItems.contains(zonaBuscada)
+    private suspend fun insertNewZone(database: AppDatabase, tzCurrent: String) {
+        if (!tzCurrent.contains("Empty", ignoreCase = true) && tzCurrent.isNotBlank()) {
+            val currentTimeMillis = System.currentTimeMillis()
+            val timestampHour = truncateToHour(currentTimeMillis)
+            database.terrorZoneDao().insertZone(
+                TerrorZoneEntity(
+                    timestamp = currentTimeMillis,
+                    zoneName = tzCurrent,
+                    timestampHour = timestampHour
+                )
+            )
+            log("Zona insertada: $tzCurrent")
+        }
     }
+
+    private fun truncateToHour(timestamp: Long): Long {
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = timestamp
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        return calendar.timeInMillis
+    }
+
 }

@@ -18,3 +18,4 @@
 .cxx
 /.extras
 local.properties
+/app/schemas/

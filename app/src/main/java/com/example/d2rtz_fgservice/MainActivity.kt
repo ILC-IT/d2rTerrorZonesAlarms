@@ -1,13 +1,17 @@
 package com.example.d2rtz_fgservice
 
+import android.app.AlertDialog
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.sqlite.SQLiteException
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -19,10 +23,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.github.kittinunf.fuel.Fuel
+import com.google.android.material.snackbar.Snackbar
+import database.AppDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 
@@ -50,6 +62,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnListLayout: LinearLayout
     private lateinit var minuteInput: EditText
     private lateinit var minuteNotifInput: EditText
+    private lateinit var btnShowHistory: Button
     private val items = listOf(
         "Throne of Destruction",
         "Tal Rasha's Tombs",
@@ -109,6 +122,7 @@ class MainActivity : ComponentActivity() {
         minuteInput = findViewById(R.id.minuteInput)
         minuteNotifInput = findViewById(R.id.minuteNotifInput)
         btnInfo = findViewById(R.id.infoButton)
+        btnShowHistory = findViewById(R.id.btnShowHistory)
         title = "Endless Service"
 
         loadSelectedItems() // Recuperar selectedItems de SharedPreferences
@@ -225,8 +239,16 @@ class MainActivity : ComponentActivity() {
         btnInfo.setOnClickListener {
             // Obtener la versión de la app y mostrarla en un Toast
             val version = getAppVersion(this)
-            val resultado = "App Version: $version\n${EndlessService.alarmaInfo}\n${EndlessService.notifinfo}"
-            Toast.makeText(this, resultado, Toast.LENGTH_SHORT).show()
+            // Actualizo tamaño de DB
+            EndlessService.sizeDBBytes = getDBTotalSize(this@MainActivity)
+            // Muestro resultado
+            val resultado = "App Version: $version\n${EndlessService.alarmaInfo}\n${EndlessService.notifinfo}\nDB: ${EndlessService.sizeDBBytes/1024}KB"
+            showSnackbar(findViewById(android.R.id.content), resultado)
+        }
+
+        // Ver el historial de zonas guardadas en la database
+        btnShowHistory.setOnClickListener {
+            showHistoryDialog()
         }
 
         // Solicitar permiso para mostrar notificaciones en Android 13 y superior
@@ -446,6 +468,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun requestNotificationPermission() {
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -482,55 +505,139 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun showHistoryDialog() {
+        lifecycleScope.launch {
+            val database = AppDatabase.getInstance(this@MainActivity)
+
+            // Obtener el número total de zonas
+            val count = database.terrorZoneDao().countZones()
+
+            // Obtener las zonas en un intervalo de tiempo
+            val zones = database.terrorZoneDao().getZonesBetween(
+                startTime = System.currentTimeMillis() - DBConfig.ZONESBETWEEN,
+                endTime = System.currentTimeMillis()
+            )
+
+            if (zones.isEmpty()) {
+                Toast.makeText(this@MainActivity, "No hay datos en el historial", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            // Crear el diálogo con un tema personalizado
+            val dialog = Dialog(this@MainActivity, R.style.CustomDialogTheme)
+            dialog.setContentView(R.layout.dialog_history)
+
+            val listView = dialog.findViewById<ListView>(R.id.listViewHistory)
+            val btnClose = dialog.findViewById<Button>(R.id.btnCloseHistory)
+            val btnDelete = dialog.findViewById<Button>(R.id.btnDeleteDB)
+            val titleView = dialog.findViewById<TextView>(R.id.dialogTitle)
+
+            // Configurar el título del diálogo
+            val titulo = "History: $count TZ in DB"
+            titleView.text = titulo
+
+            // Crear el adaptador para la lista
+            val adapter = ArrayAdapter(
+                this@MainActivity,
+                R.layout.list_item_custom, // Aquí usamos nuestro diseño personalizado
+                zones.map { "${formatTimestamp(it.timestamp)} - ${it.zoneName}" }
+            )
+
+            // Configurar el adaptador en el ListView
+            listView.adapter = adapter
+
+            btnClose.setOnClickListener {
+                dialog.dismiss()
+            }
+//            btnClose.setBackgroundColor(Color.DKGRAY) // Fondo gris oscuro del botón
+//            btnClose.setTextColor(Color.WHITE) // Texto blanco del botón
+
+            // Botón para borrar la base de datos
+            btnDelete.setOnClickListener {
+                showDeleteConfirmationDialog(dialog) // Llamar a la función que muestra el diálogo de confirmación
+            }
+
+            dialog.show()
+        }
+    }
+
+    // Mostrar el cuadro de diálogo de confirmación para borrar la base de datos.
+    private fun showDeleteConfirmationDialog(parentDialog: Dialog) {
+        val confirmationDialog = AlertDialog.Builder(this, R.style.CustomDialogTheme)
+            .setTitle("Confirmación")
+            .setMessage("¿Desea borrar la base de datos?")
+            .setPositiveButton("Sí") { dialog, _ ->
+                // Borrar la base de datos en un hilo secundario
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val database = AppDatabase.getInstance(this@MainActivity)
+
+                    try {
+                        // Borra todas las tablas de la base de datos
+                        database.clearAllTables()
+                        log("DB borrada")
+
+                        // Ejecutar el checkpoint para liberar espacio en el archivo WAL
+                        val supportSQLiteDb = database.openHelper.writableDatabase
+                        val cursor = supportSQLiteDb.query("PRAGMA wal_checkpoint(FULL)", emptyArray())
+                        // Procesar resultados del checkpoint
+                        if (cursor.moveToFirst()) {
+                            val a = cursor.getInt(0) // Páginas en el WAL antes del checkpoint
+                            val b = cursor.getInt(1) // Páginas transferidas al archivo principal
+                            val c = cursor.getInt(2) // Páginas restantes en el WAL
+
+                            log("Checkpoint ejecutado: a=$a, b=$b, c=$c")
+                        }
+                        cursor.close()
+
+                        // Actualizo la variable del tamaño de la DB
+                        EndlessService.sizeDBBytes = getDBTotalSize(this@MainActivity)
+                        if (EndlessService.sizeDBBytes >= 0) {
+                            log("Tamaño total de la DB actualizado: ${EndlessService.sizeDBBytes} bytes")
+                        } else {
+                            log("Error al calcular el tamaño de la DB")
+                        }
+
+                        withContext(Dispatchers.Main) {
+                            // Mostrar el Toast en el hilo principal
+                            Toast.makeText(this@MainActivity, "DB borrada", Toast.LENGTH_SHORT)
+                                .show()
+                            // Cerrar ambos diálogos en el hilo principal
+                            dialog.dismiss()
+                            parentDialog.dismiss()
+                        }
+                    } catch(e: SQLiteException){
+                        log("Error al borrar la DB o ejecutar checkpoint: ${e.message}")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Error al ejecutar checkpoint de DB", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("No") { dialog, _ ->
+                // Cerrar solo el diálogo de confirmación
+                dialog.dismiss()
+            }
+            .create()
+
+        confirmationDialog.show()
+    }
+
+    private fun formatTimestamp(timestamp: Long): String {
+        val dateFormat = SimpleDateFormat("dd/MM/yy H':00'", Locale.getDefault())
+        return dateFormat.format(Date(timestamp))
+    }
+
+    private fun showSnackbar(view: View, message: String) {
+        Snackbar.make(view, message, Snackbar.LENGTH_LONG)
+            .setTextMaxLines(4) // Permite hasta 4 líneas
+            .show()
+    }
 
     /**
     Función que busca un valor en un mapa usando una clave dada.
     @param clave Clave que se usará para buscar en el mapa.
     @return El valor correspondiente a la clave dada, o un mensaje de error si la clave no existe.
      */
-    @Suppress("SpellCheckingInspection")
-    private fun buscarEnMapa(clave: String): String {
 
-        val mapa = mapOf(
-            "2" to "Blood Moor - Den of Evil",
-            "3" to "Cold Plains - Cave",
-            "4" to "Stony Field",
-            "5" to "Darkwood - Underground Passage",
-            "6" to "Black Marsh - The Hole",
-            "12" to "Pit",
-            "17" to "Burial Grounds - Crypt - Mausoleum",
-            "20" to "Forgotten Tower",
-            "28" to "Jail - Barracks",
-            "33" to "Cathedral - Catacombs",
-            "38" to "Tristram",
-            "39" to "Moo Moo Farm",
-            "41" to "Stony Tomb - Rocky Waste",
-            "42" to "Dry Hills - Halls of the Dead",
-            "43" to "Far Oasis",
-            "44" to "Lost City - Valley of Snakes", // - Claw Viper Temple",
-            "47" to "Lut Gholein Sewers",
-            "65" to "Ancient Tunnels",
-            "66" to "Tal Rasha's Tombs",
-            "74" to "Arcane Sanctuary",
-            "76" to "Spider Forest - Spider Cavern",
-            "77" to "Great Marsh",
-            "78" to "Flayer Jungle and Dungeon",
-            "80" to "Kurast Bazaar - Temples",
-            "83" to "Travincal",
-            "100" to "Durance of Hate",
-            "104" to "Outer Steppes - Plains of Despair",
-            "106" to "City of the Damned - River of Flame",
-            "108" to "Chaos Sanctuary",
-            "110" to "Bloody Foothills - Frigid Highlands", // - Abbadon",
-            "112" to "Arreat Plateau - Pit of Acheron",
-            "113" to "Crystalline Passage - Frozen River",
-            "115" to "Glacial Trail - Drifter Cavern",
-            "118" to "Ancient's Way - Icy Cellar",
-            "121" to "Nihlathak's Temple and Halls",
-            "128" to "Throne of Destruction",
-        )
-
-        return mapa[clave] ?: "Zona no encontrada"
-    }
 
 }

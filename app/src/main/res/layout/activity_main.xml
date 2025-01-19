@@ -165,6 +165,15 @@
         android:layout_marginTop="16dp"
         android:text="@string/show_list" />
 
+    <!-- Show History Button -->
+    <Button
+        android:id="@+id/btnShowHistory"
+        android:layout_width="44dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/idTZNext"
+        android:layout_marginTop="0dp"
+        android:text="@string/show_history" />
+
     <!-- LinearLayout for the 3 buttons -->
     <LinearLayout
         android:id="@+id/buttonsListLayout"

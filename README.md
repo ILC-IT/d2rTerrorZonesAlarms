@@ -1,3 +1,9 @@
+# v1.20
+- **New feature**: now logs current zone in a sqlite database with their timestamp when `alarm` minute has passed.
+- By default, it will auto delete data with *x=3* days old. A code snippet is provided inside EndlessService-checkApi() to give the ability to auto delete the DB with *x* days old.
+- Added a button (`H`) to show zone history for the last *x=2* days.
+- You can configure some variables inside Utils.kt file.
+
 # v1.10
 
 ## What is it?
