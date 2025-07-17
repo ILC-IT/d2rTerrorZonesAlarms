@@ -2,15 +2,20 @@ package com.example.d2rtz_fgservice
 
 import android.app.AlertDialog
 import android.app.Dialog
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.database.sqlite.SQLiteException
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
 import android.widget.Button
@@ -63,6 +68,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var minuteInput: EditText
     private lateinit var minuteNotifInput: EditText
     private lateinit var btnShowHistory: Button
+    private lateinit var btnVentana: Button
     private val items = listOf(
         "Throne of Destruction",
         "Tal Rasha's Tombs",
@@ -104,10 +110,12 @@ class MainActivity : ComponentActivity() {
     private val selectedItems = mutableSetOf<String>()
     private lateinit var adapter: ItemsAdapter
     private var delayApi: Int = Login.DELAYAPIDEFAULT
+    private lateinit var receiver: BroadcastReceiver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
 
         msgTzCurrent = findViewById(R.id.idTZCurrent)
         msgTzNext = findViewById(R.id.idTZNext)
@@ -123,9 +131,12 @@ class MainActivity : ComponentActivity() {
         minuteNotifInput = findViewById(R.id.minuteNotifInput)
         btnInfo = findViewById(R.id.infoButton)
         btnShowHistory = findViewById(R.id.btnShowHistory)
+        btnVentana = findViewById(R.id.btnMostrarVentana)
         title = "Endless Service"
 
+
         loadSelectedItems() // Recuperar selectedItems de SharedPreferences
+
         adapter = ItemsAdapter(items)
         listView.adapter = adapter
         adapter.notifyDataSetChanged()
@@ -135,18 +146,22 @@ class MainActivity : ComponentActivity() {
             btnListLayout.visibility = View.VISIBLE  // Mostrar los botones de la lista
             btnShowList.visibility = View.GONE
         }
+
         btnHideList.setOnClickListener {
             listView.visibility = View.GONE
             btnListLayout.visibility = View.GONE  // Ocultar los botones de la lista
             btnShowList.visibility = View.VISIBLE
             sortSelectedItems()
         }
+
         btnClearList.setOnClickListener {
             clearListSelections()
         }
+
         btnSelectAllList.setOnClickListener {
             selectAllItemsList()
         }
+
         // Boton Actualizar
         findViewById<ImageButton>(R.id.idActualizar).let {
             it.setOnClickListener {
@@ -154,6 +169,7 @@ class MainActivity : ComponentActivity() {
                 Log.d("MainActivity", "Clicked on update button")
             }
         }
+
         // Boton Start Service
         findViewById<Button>(R.id.btnStartService).let {
             forceRestart = true
@@ -162,6 +178,7 @@ class MainActivity : ComponentActivity() {
                 actionOnService(Actions.START)
             }
         }
+
         // Boton Stop Service
         findViewById<Button>(R.id.btnStopService).let {
             forceRestart = false
@@ -170,6 +187,7 @@ class MainActivity : ComponentActivity() {
                 actionOnService(Actions.STOP)
             }
         }
+
         // Boton setAlarm Button Service
         btnSetAlarm.setOnClickListener {
             // Verificar si el servicio está activo
@@ -201,7 +219,10 @@ class MainActivity : ComponentActivity() {
             } catch (e: NumberFormatException) {
                 Toast.makeText(this, "Wrong input!", Toast.LENGTH_SHORT).show()
             }
+            // Ocultar teclado si está abierto
+            ocultarTeclado(it, this)
         }
+
         // Boton setNotif Button Service
         btnSetNotif.setOnClickListener {
             // Verificar si el servicio está activo
@@ -233,16 +254,17 @@ class MainActivity : ComponentActivity() {
             } catch (e: NumberFormatException) {
                 Toast.makeText(this, "Wrong input!", Toast.LENGTH_SHORT).show()
             }
+            // Ocultar teclado si está abierto
+            ocultarTeclado(it, this)
         }
 
-        // Configurar el click listener
         btnInfo.setOnClickListener {
             // Obtener la versión de la app y mostrarla en un Toast
             val version = getAppVersion(this)
             // Actualizo tamaño de DB
             EndlessService.sizeDBBytes = getDBTotalSize(this@MainActivity)
             // Muestro resultado
-            val resultado = "App Version: $version\n${EndlessService.alarmaInfo}\n${EndlessService.notifinfo}\nDB: ${EndlessService.sizeDBBytes/1024}KB"
+            val resultado = "App: $version\nAPI Delay: xx:$delayApi\n${EndlessService.alarmaInfo}\n${EndlessService.notifinfo}\nDB: ${EndlessService.sizeDBBytes/1024}KB\nMute: ${Login.mute}"
             showSnackbar(findViewById(android.R.id.content), resultado)
         }
 
@@ -259,20 +281,72 @@ class MainActivity : ComponentActivity() {
         // Realiza la llamada a la API al iniciar la aplicación
         checkApiImmediately()
 
+        // Dialog para el mute
+        cargarPreferenciasModoMute()
+
+        // Boton mute
+        actualizarColorMute()
+        btnVentana.setOnClickListener {
+            // Verificar si el servicio está activo
+            if (getServiceState(this) == ServiceState.STOPPED) {
+                Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer el mute.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            showModoMuteDialog()
+        }
+
+        // Inicializa el receiver para cambiar el color del mute
+        receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "EndlessService_DETENIDO") {
+                    val red = ColorStateList.valueOf(Color.parseColor("#B00020"))
+                    btnVentana.backgroundTintList = red
+                }
+                if (intent?.action == "MUTE_STATE_CHANGED") {
+//                    val newState = intent.getBooleanExtra("muteState", false)
+                    val red = ColorStateList.valueOf(Color.parseColor("#B00020"))
+                    btnVentana.backgroundTintList = red
+                }
+                if (intent?.action == "UPDATE_TZNEXT") {
+                    val newValue = intent.getStringExtra("new_tznext") ?: return
+                    runOnUiThread {
+                        msgTzNext.text = newValue
+                    }
+                }
+            }
+        }
+
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onResume() {
         super.onResume()
+
         // Recargar selectedItems de SharedPreferences cuando la actividad se reanuda
         loadSelectedItems()
         adapter.notifyDataSetChanged()
         checkApiImmediately()
+
         // Recuperar el valor del minuto para alarmas de SharedPreferences
         val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
         val savedMinute = preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT) // Valor predeterminado: 30
         val savedNotifMinute = preferences.getInt("minutoParaNotif", Login.DELAYAPIDEFAULT) // Valor predeterminado: 20
         minuteInput.setText(String.format(Locale.getDefault(), "%d", savedMinute))
         minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", savedNotifMinute))
+
+        // Registar broadcast para cambiar el color del boton mute y actualizar vista con pantalla activa
+        actualizarColorMute()
+        val filter = IntentFilter("EndlessService_DETENIDO")
+        registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+        val anotherFilter = IntentFilter("MUTE_STATE_CHANGED")
+        registerReceiver(receiver, anotherFilter, RECEIVER_NOT_EXPORTED)
+        val anootherFilter = IntentFilter("UPDATE_TZNEXT")
+        registerReceiver(receiver, anootherFilter, RECEIVER_NOT_EXPORTED)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(receiver)
     }
 
     // Clase para la lista de zonas en el desplegable y su vista
@@ -327,6 +401,110 @@ class MainActivity : ComponentActivity() {
             val textView: TextView = view.findViewById(R.id.nameTextView)
             val checkBox: CheckBox = view.findViewById(R.id.checkBox)
         }
+    }
+
+    private fun showModoMuteDialog() {
+        val dialog = Dialog(this)
+        dialog.setContentView(R.layout.dialog_modo_mute)
+
+        val editHoraInicio = dialog.findViewById<EditText>(R.id.editHoraInicio)
+        val editHoraFin = dialog.findViewById<EditText>(R.id.editHoraFin)
+        val checkBoxRango = dialog.findViewById<CheckBox>(R.id.checkBoxRango)
+        val checkBoxMute = dialog.findViewById<CheckBox>(R.id.checkBoxMute)
+        val btnAccept = dialog.findViewById<Button>(R.id.btnAccept)
+        val btnCancel = dialog.findViewById<Button>(R.id.btnCancel)
+
+        // Mostrar valores actuales o por defecto
+        if (Login.horaInicio == -1 && Login.horaFin == -1) {
+            editHoraInicio.setText("0")
+            editHoraFin.setText("23")
+        } else {
+            editHoraInicio.setText(Login.horaInicio.toString())
+            editHoraFin.setText(Login.horaFin.toString())
+        }
+
+        checkBoxRango.isChecked = Login.rangoActivo
+        checkBoxMute.isChecked = Login.mute
+
+        btnAccept.setOnClickListener {
+            val inicio = editHoraInicio.text.toString().toIntOrNull()
+            val fin = editHoraFin.text.toString().toIntOrNull()
+            val rangoActivo = checkBoxRango.isChecked
+            val mute = checkBoxMute.isChecked
+
+            if ((inicio == null || fin == null) && (mute)){
+                Toast.makeText(this, "Debes introducir ambas horas", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if ((inicio !in 0..23 || fin !in 0..23)){
+                Toast.makeText(this, "Las horas deben estar entre 0 y 23", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+//            if (fin <= inicio) {
+//                Toast.makeText(this, "Hora final debe ser mayor que hora inicio", Toast.LENGTH_SHORT).show()
+//                return@setOnClickListener
+//            }
+
+            // Guardar los valores
+            Login.horaInicio = inicio ?: 0
+            Login.horaFin = fin ?: 0
+            Login.rangoActivo = rangoActivo
+            Login.mute = mute
+
+            // Cambiar de color el boton M segun mute
+            actualizarColorMute()
+
+            guardarPreferenciasModoMute(
+                Login.horaInicio,
+                Login.horaFin,
+                Login.rangoActivo,
+                Login.mute
+            )
+
+            Toast.makeText(this, "Configuración guardada", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+
+        // Botón cancelar, cerrar sin guardar
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
+
+        // Forzar el ancho del diálogo al ancho completo de pantalla
+        val window = dialog.window
+        window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+    }
+
+    private fun guardarPreferenciasModoMute(
+        horaInicio: Int,
+        horaFin: Int,
+        rangoActivo: Boolean,
+        mute: Boolean
+    ) {
+        val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putInt("horaInicio", horaInicio)
+            putInt("horaFin", horaFin)
+            putBoolean("rangoActivo", rangoActivo)
+            putBoolean("mute", mute)
+            apply()
+        }
+    }
+
+    private fun cargarPreferenciasModoMute() {
+        val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
+        Login.horaInicio = prefs.getInt("horaInicio", -1)
+        Login.horaFin = prefs.getInt("horaFin", -1)
+        Login.rangoActivo = prefs.getBoolean("rangoActivo", false)
+        Login.mute = prefs.getBoolean("mute", false)
     }
 
     private fun checkApiImmediately() {
@@ -384,6 +562,9 @@ class MainActivity : ComponentActivity() {
                         val nextTerrorTimeUtc = String.format("%s", dateString)
                         val nextTerrorTimeUtcAvailable = String.format("%s", dateStringAvailable)
                         delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
+                        val hint = getString(R.string.minuto_0_59, delayApi)
+                        findViewById<EditText>(R.id.minuteInput).hint = hint
+                        findViewById<EditText>(R.id.minuteNotifInput).hint = hint
 //                        log("current: $tzCurrent $tzNext $tzNextHour $tzNextAvailableHour $delayApi")
 
                         val currentTimeMillis = System.currentTimeMillis() // Hora actual en milisegundos
@@ -629,15 +810,26 @@ class MainActivity : ComponentActivity() {
 
     private fun showSnackbar(view: View, message: String) {
         Snackbar.make(view, message, Snackbar.LENGTH_LONG)
-            .setTextMaxLines(4) // Permite hasta 4 líneas
+            .setTextMaxLines(6) // Permite hasta 6 líneas
             .show()
     }
 
-    /**
-    Función que busca un valor en un mapa usando una clave dada.
-    @param clave Clave que se usará para buscar en el mapa.
-    @return El valor correspondiente a la clave dada, o un mensaje de error si la clave no existe.
-     */
+    private fun ocultarTeclado(view: View, context: Context) {
+        val inputMethodManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+    }
+
+    private fun actualizarColorMute() {
+        // Cambia el color del boton mute segun el estado de la variable
+        if (Login.mute){
+            val green = ColorStateList.valueOf(Color.parseColor("#4CAF50"))
+            btnVentana.backgroundTintList = green
+        }
+        else{
+            val red = ColorStateList.valueOf(Color.parseColor("#B00020"))
+            btnVentana.backgroundTintList = red
+        }
+    }
 
 
 }

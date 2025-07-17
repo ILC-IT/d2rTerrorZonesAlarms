@@ -105,15 +105,19 @@
     <!-- Update Button -->
     <ImageButton
         android:id="@+id/idActualizar"
-        android:layout_width="wrap_content"
+        android:layout_width="98dp"
         android:layout_height="wrap_content"
-        android:src="@drawable/ic_update"
         android:layout_below="@id/config"
-        android:contentDescription="@string/actualizar"
-        android:background="@drawable/custom_button_background"
+        android:layout_alignParentEnd="true"
+        android:layout_marginStart="35dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="0dp"
         android:layout_toEndOf="@id/idTZHeading"
-        android:layout_marginVertical="8dp"
-        android:layout_marginStart="48dp"/>
+        android:background="@drawable/custom_button_background"
+        android:contentDescription="@string/actualizar"
+        android:src="@drawable/ic_update" />
+<!--        android:layout_marginVertical="8dp"-->
+<!--        android:layout_marginStart="48dp"/>-->
 
     <!-- Heading TextView -->
     <TextView
@@ -173,6 +177,17 @@
         android:layout_below="@id/idTZNext"
         android:layout_marginTop="0dp"
         android:text="@string/show_history" />
+
+    <!-- Show Mute Button -->
+    <Button
+        android:id="@+id/btnMostrarVentana"
+        android:layout_width="44dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/idTZNext"
+        android:layout_marginTop="0dp"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="0dp"
+        android:text="@string/mute_button" />
 
     <!-- LinearLayout for the 3 buttons -->
     <LinearLayout

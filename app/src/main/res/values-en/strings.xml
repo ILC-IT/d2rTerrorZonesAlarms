@@ -8,7 +8,11 @@
     <string name="set_alarm">ALARM</string>
     <string name="set_noti">NOTIF</string>
     <string name="version_app_info">App version info</string>
-    <string name="show_history">H</string>
     <string name="closeDB">Close</string>
     <string name="borrarDB">Delete DB</string>
+    <string name="hora_init">Init Hour</string>
+    <string name="hora_fin">End Hour</string>
+    <string name="aceptar">Accept</string>
+    <string name="cancelar">Cancel</string>
+    <string name="use_best_zones">Usar Best Zones</string>
 </resources>

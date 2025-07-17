@@ -1,3 +1,8 @@
+# v1.30
+- **New feature**: new button to mute the app within a specific time range.
+- You can edit the start hour and end hour in the mute dialog. With 'Mute' on, the app will remain active but alarms will be muted during your chosen time period.
+- If you tick 'Mute' and also 'Use Best Zones' (by default: throne, tal rasha, chaos), the app will remain muted, triggering alarms only for those Best Zones.
+
 # v1.20
 - **New feature**: now logs current zone in a sqlite database with their timestamp when `alarm` minute has passed.
 - By default, it will auto delete data with *x=3* days old. A code snippet is provided inside EndlessService-checkApi() to give the ability to auto delete the DB with *x* days old.
@@ -45,7 +50,7 @@ Android's app that checks the next terror zone for Diablo 2 Resurrected.
 	```
 
 # Images from app
-![6](.pictures/6.png) ![7](.pictures/7.png) ![8](.pictures/8.png)
+![6](.pictures/6.png) ![7](.pictures/7.png) ![8](.pictures/8.png) ![9](.pictures/9.png)
 
 # **WARNING**:
 - You need to allow notifications, auto launch, background data and no battery restrictions/optimizations in your phone.

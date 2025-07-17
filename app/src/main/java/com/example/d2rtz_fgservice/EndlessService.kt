@@ -74,7 +74,7 @@ class EndlessService : Service() {
                     startApiCheckLoop() // Ejecuta el bucle de verificación de la API y programa la siguiente alarma
                 }
                 "CHECK_API_NOTIFICATION" -> {
-                    startApiNotificationLoop() // Ejecuta la API y programa la siguiente alarma para actualizar la notificacion de fgServie
+                    startApiNotificationLoop() // Ejecuta la API y programa la siguiente alarma para actualizar la notificacion de fgService
                 }
                 else -> log("This should never happen. No action in the received intent")
             }
@@ -113,6 +113,11 @@ class EndlessService : Service() {
 //        val editor = pref.edit()
 //        editor.clear()
 //        editor.apply()
+
+        // Enviar un broadcast cuando el servicio se detiene
+        val intent = Intent("EndlessService_DETENIDO")
+        sendBroadcast(intent)
+
         log("The service has been destroyed".uppercase())
         Toast.makeText(this, "Service destroyed", Toast.LENGTH_SHORT).show()
     }
@@ -203,6 +208,16 @@ class EndlessService : Service() {
             cancelInitialAlarm()
             cancelHourlyAlarm()
             cancelHourlyUpdateAtExactHour()
+            cancelHourlyUpdateAtExactHourMute()
+
+            // Eliminar ModoMuteConfig
+            val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
+            prefs.edit().clear().apply()
+            // Valores por defecto de los botones del mute
+            Login.horaInicio = -1
+            Login.horaFin = -1
+            Login.rangoActivo = false
+            Login.mute = false
 
             stopForeground(STOP_FOREGROUND_DETACH)
             stopSelf()
@@ -310,6 +325,41 @@ class EndlessService : Service() {
         log("Exact hourly alarm set for: ${calendar.time}")
     }
 
+    private fun setHourlyUpdateAtExactHourMute(minutoParaNotif: Int) {
+        // Alarma para actualizar el color del boton mute 1 vez cada hora cada minuto minutoParaNotif a los 30 segundos
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, AlarmReceiver::class.java).apply {
+            action = "HOURLY_EXACT_UPDATE_ACTION" // Nueva acción específica para la alarma horaria en punto
+        }
+        val pendingIntent = PendingIntent.getBroadcast(this, 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        // Obtener la hora actual y programar la alarma para el próximo "XX:minutoParaNotif"
+        val calendar = Calendar.getInstance()
+
+        // Establecer el minuto a minutoParaNotif para la próxima hora en punto
+        calendar.set(Calendar.MINUTE, minutoParaNotif)
+        calendar.set(Calendar.SECOND, 30)
+        calendar.set(Calendar.MILLISECOND, 0)
+
+        // Si ya pasamos la hora en punto, ajustar a la siguiente hora
+        if (calendar.timeInMillis <= System.currentTimeMillis()) {
+            calendar.add(Calendar.HOUR_OF_DAY, 1)
+        }
+
+        // Establecer la alarma
+        val triggerAtMillis = calendar.timeInMillis
+        val ac = AlarmClockInfo(triggerAtMillis, null)
+        alarmManager.setAlarmClock(ac, pendingIntent)
+
+        // Formateo de la hora para el toast
+        val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
+        val formattedTime = simpleDateFormat.format(calendar.time)
+        notifinfo = "Checkeo notificación: $formattedTime"
+//        Toast.makeText(this, notifinfo, Toast.LENGTH_SHORT).show()
+        log("Exact hourly alarm set for disabling mute: ${calendar.time}")
+    }
+
 
     private fun cancelInitialAlarm() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -344,6 +394,16 @@ class EndlessService : Service() {
         log("cancelHourlyUpdateAtExactHour")
     }
 
+    private fun cancelHourlyUpdateAtExactHourMute() {
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, AlarmReceiver::class.java).apply {
+            action = "HOURLY_EXACT_UPDATE_ACTION" // Acción usada en setHourlyUpdateAtExactHourMute()
+        }
+        val pendingIntent = PendingIntent.getBroadcast(this, 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        alarmManager.cancel(pendingIntent)
+        log("cancelHourlyUpdateAtExactHourMute")
+    }
 
     private val updateAlarmReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
@@ -458,7 +518,7 @@ class EndlessService : Service() {
 
                         // Obtener las zonas seleccionadas en MainActivty desde SharedPreferences
                         val sharedPreferences = applicationContext.getSharedPreferences("EndlessService", Context.MODE_PRIVATE)
-                        val selectedItems = sharedPreferences.getStringSet("selectedItems", emptySet())?.toList()
+                        val selectedItems = sharedPreferences.getStringSet("selectedItems", emptySet()) ?.mapNotNull { it } ?: emptyList()
 
                         // Insertar zona actual y hora en la base de datos
                         // Esto va a meter la primera zona cuando se cumpla el minuto de "ALARMA". Si ya ha pasado meterá la de la siguiente hora
@@ -477,25 +537,49 @@ class EndlessService : Service() {
                             log("tamaño de la DB en bytes: $sizeDBBytes")
                         }
 
-                        if (isNameInSelectedItems(selectedItems ?: listOf(), tzNext)) {
-                            // Verificar permisos y enviar notificación
+
+//                        if (isNameInSelectedItems(selectedItems ?: listOf(), tzNext)) {
+//                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+//                                ContextCompat.checkSelfPermission(
+//                                    applicationContext,
+//                                    android.Manifest.permission.POST_NOTIFICATIONS
+//                                ) == PackageManager.PERMISSION_GRANTED
+//                            ) {
+//                                val currentTimeMillis = System.currentTimeMillis()
+//                                if (currentTimeMillis < tzNextAvailableHour) {
+//                                    createNotificationAlarm(tzNext, "Wait until $nextTerrorTimeUtcAvailable")
+//                                } else {
+//                                    createNotificationAlarm(tzNext, nextTerrorTimeUtc)
+//                                }
+//                                log("Notification with alarm 32 done")
+//                            } else {
+//                                log("Notification with alarm 32 permission not granted")
+//                            }
+//                        }
+
+
+                        // Notification Alarm en funcion de Login.mute
+                        if (shouldNotifyZone(tzNext, selectedItems)){
                             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                                 ContextCompat.checkSelfPermission(
                                     applicationContext,
                                     android.Manifest.permission.POST_NOTIFICATIONS
                                 ) == PackageManager.PERMISSION_GRANTED
                             ) {
-                                val currentTimeMillis = System.currentTimeMillis() // Hora actual en milisegundos
+                                val currentTimeMillis = System.currentTimeMillis()
                                 if (currentTimeMillis < tzNextAvailableHour) {
                                     createNotificationAlarm(tzNext, "Wait until $nextTerrorTimeUtcAvailable")
                                 } else {
                                     createNotificationAlarm(tzNext, nextTerrorTimeUtc)
                                 }
-                                log("Notification with alarm 32 done")
+                                log("Notification with alarm done")
                             } else {
-                                log("Notification with alarm 32 permission not granted")
+                                log("Notification with alarm permission not granted")
                             }
+                        } else {
+                            log("NO Notification with alarm sent due to selectedItems empty / mute settings")
                         }
+
                     }
                 }
         } catch (e: Exception) {
@@ -603,7 +687,18 @@ class EndlessService : Service() {
                                 nextTerrorTimeUtc
                             }
                         }
+
+                        // Actualizar foreground notification
                         updateForegroundNotification(salida)
+
+                        // Actualiza vista de mainActivity para cuando la pantalla esta activa
+                        val intent = Intent("UPDATE_TZNEXT")
+                        intent.putExtra("new_tznext", "$salida $tzNext")
+                        sendBroadcast(intent)
+
+                        // Verificar si debe desactivarse el modo mute automáticamente
+                        desactivarMuteAuto()
+                        setHourlyUpdateAtExactHourMute(0) // A los 30s de cada hora
 
                         // Configurar la próxima actualización exacta en la siguiente hora en punto + 1 min
                         if (currentMinutes > minutoParaNotif) {
@@ -611,7 +706,7 @@ class EndlessService : Service() {
                             setHourlyUpdateAtExactHour(1)
                             return@responseObject
                         }
-                        // Configurar la próxima actualización exacta en la siguiente hora en punto
+                        // Configurar la próxima actualización exacta en la siguiente hora en punto + delayApi/minutoParaNotif
                         if(minutoParaNotif > delayApi) {
                             setHourlyUpdateAtExactHour(minutoParaNotif)
                         }else{
@@ -812,6 +907,71 @@ class EndlessService : Service() {
             set(Calendar.MILLISECOND, 0)
         }
         return calendar.timeInMillis
+    }
+
+    private fun shouldNotifyZone(tzNext: String, selectedItems: List<String>): Boolean {
+        val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val start = Login.horaInicio
+        val end = Login.horaFin
+
+        // Si mute está desactivado, notificar siempre que la zona esté en la lista seleccionada
+        if (!Login.mute) {
+            return isNameInSelectedItems(selectedItems, tzNext)
+        }
+
+        // Verificar si estamos dentro del intervalo silenciado
+        val isWithinMutedInterval = if (start < end) {
+            // Ej: 5-7, mute entre 5:00 y 6:59
+            currentHour in start..<end // currentHour >= start && currentHour < end
+        } else {
+            // Ej: 22-5, mute entre 22:00 y 4:59
+            currentHour >= start || currentHour < end
+        }
+
+        return if (isWithinMutedInterval) {
+            if (Login.rangoActivo) {
+                // Solo notificar si es una zona "buena"
+                isNameInSelectedItems(Login.BEST_ZONES, tzNext)
+            } else {
+                // En rango mute, no notificar
+                false
+            }
+        } else {
+            // Fuera del rango de mute, notificar normalmente
+            isNameInSelectedItems(selectedItems, tzNext)
+        }
+    }
+
+    private fun desactivarMuteAuto() {
+        val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+        // Si mute activo, comprueba si hay que desactivar el mute cuando el rango de horas se ha cumplido
+        if (Login.mute) {
+            val start = Login.horaInicio
+            val end = Login.horaFin
+
+            val shouldBeMuted = if (start < end) {
+                // Rango normal, ejemplo: 11-15, mute de 11:00 hasta 14:59
+                currentHour in start until end
+            } else {
+                // Rango cruzando medianoche, ejemplo: 22-5, mute de 22:00 hasta 4:59
+                currentHour >= start || currentHour < end
+            }
+
+            if (!shouldBeMuted) {
+                Login.mute = false
+                log("Modo Mute desactivado automáticamente.")
+
+                // Guardar en SharedPreferences
+                val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("mute", false).apply()
+
+                // Enviar broadcast para notificar a MainActivity
+                val intent = Intent("MUTE_STATE_CHANGED")
+                intent.putExtra("muteState", false)
+                sendBroadcast(intent)
+            }
+        }
     }
 
 }

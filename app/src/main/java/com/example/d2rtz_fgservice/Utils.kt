@@ -9,12 +9,20 @@ import java.util.Calendar
 
 class Login {
     companion object {
+        //////////////////////////// LOGIN ////////////////////////////
         const val URL = "https://www.d2emu.com/api/v1/tz"
         const val USERNAME = ""
         const val TOKEN = ""
-        const val MINUTOPARAALARMASDEFAULT = 30 // Minuto predeterminado para alarmas
-        const val MINUTOPARANOTIF = 21 // Minuto predeterminado para notificación. NO debe ser menor que DELAYAPIDEFAULT
-        const val DELAYAPIDEFAULT = 21 // Minuto predeterminado para que la api retorne resultados. NO debe ser menor al valor dealyApi retornado por la API
+        //////////////////////////// ALARM - NOTIF ////////////////////
+        const val MINUTOPARAALARMASDEFAULT = 40 // Minuto predeterminado para alarmas
+        const val MINUTOPARANOTIF = 11 // Minuto predeterminado para notificación. NO debe ser menor que DELAYAPIDEFAULT
+        const val DELAYAPIDEFAULT = 11 // Minuto predeterminado para que la api retorne resultados. NO debe ser menor al valor delayApi retornado por la API
+        //////////////////////////// MUTE APP /////////////////////////
+        val BEST_ZONES = arrayOf("Throne of Destruction", "Tal Rasha's Tombs", "Chaos Sanctuary").toList()
+        var horaInicio: Int = -1
+        var horaFin: Int = -1
+        var rangoActivo: Boolean = false
+        var mute: Boolean = false
     }
 }
 
@@ -24,9 +32,9 @@ object DBConfig {
         const val OLDZONESTODELETE = (3L * 24 * 60 * 60 * 1000) // Borrar zonas de hace más de 3 días
 }
 
-/**
- *********************************************** FUNCTIONS
- */
+
+
+//////////////////////////// FUNCTIONS ////////////////////////////
 
 fun log(msg: String) {
     Log.d("ENDLESS-SERVICE", msg)
