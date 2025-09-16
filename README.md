@@ -1,3 +1,6 @@
+# v1.31
+- Fix notifications when Cloudflare is blocked by Spanish mobile network operators.
+
 # v1.30
 - **New feature**: new button to mute the app within a specific time range.
 - You can edit the start hour and end hour in the mute dialog. With 'Mute' on, the app will remain active but alarms will be muted during your chosen time period.
