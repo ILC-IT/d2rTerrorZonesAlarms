@@ -15,6 +15,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.media.AudioAttributes
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -33,6 +35,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -599,6 +604,8 @@ class EndlessService : Service() {
 
                     if (error != null) {
                         log("[response error] ${error.message}")
+                        updateForegroundNotification("ERROR API / BLOQUEO")
+                        setHourlyUpdateAtExactHour(minutoParaNotif)
                         return@responseObject
                     }
 
@@ -973,5 +980,47 @@ class EndlessService : Service() {
             }
         }
     }
+
+    private fun isConnectedToInternet(context: Context): Boolean {
+//        Funcion que verifica si el movil tiene red wifi y está operativa
+//        ConnectivityManager + NetworkCapabilities → Verifica si la red está validada.
+//        Verificación real con HttpURLConnection → Se asegura de que efectivamente haya acceso a Internet.
+//        USO:
+//            val isOnline = isConnectedToInternet(this)
+//            if (isOnline) {
+//                Log.d("InternetCheck", "¡Sí hay conexión real!")
+//                Ejecutar alarmas
+//            } else {
+//                Log.d("InternetCheck", "Conectado pero sin datos.")
+//                Lanzar alarma para indicar que no hay conexion
+//            }
+
+
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+
+        val hasInternetCapability = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        val isValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+
+        // Si tiene capacidad de Internet y Android lo ha validado, probablemente tiene acceso real
+        if (hasInternetCapability && isValidated) {
+            return true
+        }
+
+        // Si no está validado, hacemos una verificación real con HTTP
+        return try {
+            val url = URL("https://clients3.google.com/generate_204")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.setRequestProperty("User-Agent", "Android")
+            connection.setRequestProperty("Connection", "close")
+            connection.connectTimeout = 1500
+            connection.connect()
+            connection.responseCode == 204
+        } catch (e: IOException) {
+            false
+        }
+    }
+
 
 }
