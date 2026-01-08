@@ -28,6 +28,13 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
                 context.startService(serviceIntent)
             }
+//            "HOURLY_EXACT_UPDATE_COLOR_MUTE_ACTION" -> {
+//                // Para actualizar el color del boton mute una vez cada hora, cada minuto 'minutoParaNotif' y a los 30 segundos
+//                val serviceIntent = Intent(context, EndlessService::class.java).apply {
+//                    action = "COLOR_MUTE_UPDATE"
+//                }
+//                context.startService(serviceIntent)
+//            }
         }
     }
 }

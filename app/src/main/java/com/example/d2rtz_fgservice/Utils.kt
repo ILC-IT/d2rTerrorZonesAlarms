@@ -32,6 +32,47 @@ object DBConfig {
         const val OLDZONESTODELETE = (3L * 24 * 60 * 60 * 1000) // Borrar zonas de hace más de 3 días
 }
 
+object ZONAS {
+    val items = listOf(
+        "Throne of Destruction",
+        "Tal Rasha's Tombs",
+        "Chaos Sanctuary",
+        "Flayer Jungle and Dungeon",
+        "Stony Tomb - Rocky Waste",
+        "Darkwood - Underground Passage",
+        "Dry Hills - Halls of the Dead",
+        "Black Marsh - The Hole",
+        "Arcane Sanctuary",
+        "Cold Plains - Cave",
+        "Lut Gholein Sewers",
+        "Lost City - Valley of Snakes", // - Claw Viper Temple",
+        "Ancient's Way - Icy Cellar",
+        "Crystalline Passage - Frozen River",
+        "Glacial Trail - Drifter Cavern",
+        "Outer Steppes - Plains of Despair",
+        "City of the Damned - River of Flame",
+        "Bloody Foothills - Frigid Highlands", // - Abbadon",
+        "Arreat Plateau - Pit of Acheron",
+        "Nihlathak's Temple and Halls",
+        "Kurast Bazaar - Temples",
+        "Jail - Barracks",
+        "Cathedral - Catacombs",
+        "Forgotten Tower",
+        "Pit",
+        "Spider Forest - Spider Cavern",
+        "Durance of Hate",
+        "Great Marsh",
+        "Far Oasis",
+        "Travincal",
+        "Moo Moo Farm",
+        "Ancient Tunnels",
+        "Stony Field",
+        "Tristram",
+        "Blood Moor - Den of Evil",
+        "Burial Grounds - Crypt - Mausoleum"
+    )
+}
+
 
 
 //////////////////////////// FUNCTIONS ////////////////////////////
@@ -125,7 +166,7 @@ fun buscarEnMapa(clave: String): String {
         "115" to "Glacial Trail - Drifter Cavern",
         "118" to "Ancient's Way - Icy Cellar",
         "121" to "Nihlathak's Temple and Halls",
-        "128" to "Throne of Destruction",
+        "128" to "Throne of Destruction"
     )
 
     return mapa[clave] ?: "Zona no encontrada"

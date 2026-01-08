@@ -1,5 +1,6 @@
 package com.example.d2rtz_fgservice
 
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.Dialog
 import android.content.BroadcastReceiver
@@ -69,44 +70,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var minuteNotifInput: EditText
     private lateinit var btnShowHistory: Button
     private lateinit var btnVentana: Button
-    private val items = listOf(
-        "Throne of Destruction",
-        "Tal Rasha's Tombs",
-        "Chaos Sanctuary",
-        "Flayer Jungle and Dungeon",
-        "Stony Tomb - Rocky Waste",
-        "Darkwood - Underground Passage",
-        "Dry Hills - Halls of the Dead",
-        "Black Marsh - The Hole",
-        "Arcane Sanctuary",
-        "Cold Plains - Cave",
-        "Lut Gholein Sewers",
-        "Lost City - Valley of Snakes", // - Claw Viper Temple",
-        "Ancient's Way - Icy Cellar",
-        "Crystalline Passage - Frozen River",
-        "Glacial Trail - Drifter Cavern",
-        "Outer Steppes - Plains of Despair",
-        "City of the Damned - River of Flame",
-        "Bloody Foothills - Frigid Highlands", // - Abbadon",
-        "Arreat Plateau - Pit of Acheron",
-        "Nihlathak's Temple and Halls",
-        "Kurast Bazaar - Temples",
-        "Jail - Barracks",
-        "Cathedral - Catacombs",
-        "Forgotten Tower",
-        "Pit",
-        "Spider Forest - Spider Cavern",
-        "Durance of Hate",
-        "Great Marsh",
-        "Far Oasis",
-        "Travincal",
-        "Moo Moo Farm",
-        "Ancient Tunnels",
-        "Stony Field",
-        "Tristram",
-        "Blood Moor - Den of Evil",
-        "Burial Grounds - Crypt - Mausoleum"
-    )
+    private val items = ZONAS.items
     private val selectedItems = mutableSetOf<String>()
     private lateinit var adapter: ItemsAdapter
     private var delayApi: Int = Login.DELAYAPIDEFAULT
@@ -264,7 +228,14 @@ class MainActivity : ComponentActivity() {
             // Actualizo tamaño de DB
             EndlessService.sizeDBBytes = getDBTotalSize(this@MainActivity)
             // Muestro resultado
-            val resultado = "App: $version\nAPI Delay: xx:$delayApi\n${EndlessService.alarmaInfo}\n${EndlessService.notifinfo}\nDB: ${EndlessService.sizeDBBytes/1024}KB\nMute: ${Login.mute}"
+            val resultado =
+                "App: $version\n" +
+                "API Delay: xx:$delayApi\n" +
+                "${EndlessService.alarmaInfo}\n" +
+                "${EndlessService.notifinfo}\n" +
+                "DB: ${EndlessService.sizeDBBytes/1024}KB\n" +
+                "Mute: ${Login.mute}" +
+                    if (Login.mute) ", [${Login.horaInicio} - ${Login.horaFin}), Use Best Zones: ${Login.rangoActivo}" else ""
             showSnackbar(findViewById(android.R.id.content), resultado)
         }
 
@@ -308,9 +279,11 @@ class MainActivity : ComponentActivity() {
                     btnVentana.backgroundTintList = red
                 }
                 if (intent?.action == "UPDATE_TZNEXT") {
-                    val newValue = intent.getStringExtra("new_tznext") ?: return
+                    val newValueCurrent = intent.getStringExtra("new_tzcurrent") ?: return
+                    val newValueNext = intent.getStringExtra("new_tznext") ?: return
                     runOnUiThread {
-                        msgTzNext.text = newValue
+                        msgTzCurrent.text = newValueCurrent
+                        msgTzNext.text = newValueNext
                     }
                 }
             }
@@ -318,7 +291,7 @@ class MainActivity : ComponentActivity() {
 
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onResume() {
         super.onResume()
 
@@ -329,19 +302,23 @@ class MainActivity : ComponentActivity() {
 
         // Recuperar el valor del minuto para alarmas de SharedPreferences
         val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
-        val savedMinute = preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT) // Valor predeterminado: 30
-        val savedNotifMinute = preferences.getInt("minutoParaNotif", Login.DELAYAPIDEFAULT) // Valor predeterminado: 20
+        val savedMinute = preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT) // Valor predeterminado: 40
+        val savedNotifMinute = preferences.getInt("minutoParaNotif", Login.DELAYAPIDEFAULT) // Valor predeterminado: 11
         minuteInput.setText(String.format(Locale.getDefault(), "%d", savedMinute))
         minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", savedNotifMinute))
 
-        // Registar broadcast para cambiar el color del boton mute y actualizar vista con pantalla activa
+        // Registrar broadcast para cambiar el color del boton mute y actualizar vista con pantalla activa
         actualizarColorMute()
-        val filter = IntentFilter("EndlessService_DETENIDO")
-        registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
-        val anotherFilter = IntentFilter("MUTE_STATE_CHANGED")
-        registerReceiver(receiver, anotherFilter, RECEIVER_NOT_EXPORTED)
-        val anootherFilter = IntentFilter("UPDATE_TZNEXT")
-        registerReceiver(receiver, anootherFilter, RECEIVER_NOT_EXPORTED)
+        val filter = IntentFilter().apply {
+            addAction("EndlessService_DETENIDO")
+            addAction("MUTE_STATE_CHANGED")
+            addAction("UPDATE_TZNEXT")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13+
+            registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(receiver, filter)
+        }
     }
 
     override fun onPause() {
@@ -541,14 +518,22 @@ class MainActivity : ComponentActivity() {
                         // Procesar datos válidos
                         // Validar listas vacías antes de acceder
                         tzCurrent = if (terrorZone.current.isNotEmpty()) {
-                            buscarEnMapa(terrorZone.current[0])
+                            if (terrorZone.current.size > 10) {
+                                "Winter event is ON."
+                            } else {
+                                buscarEnMapa(terrorZone.current[0])
+                            }
                         } else {
                             log("Warning: current zones list is empty")
                             "Empty current zone"
                         }
 
                         tzNext = if (terrorZone.next.isNotEmpty()) {
-                            buscarEnMapa(terrorZone.next[0])
+                            if (terrorZone.next.size > 10) {
+                                "Terror zones activated"
+                            } else {
+                                buscarEnMapa(terrorZone.next[0])
+                            }
                         } else {
                             log("Warning: next zones list is empty")
                             "Empty next zone"
@@ -660,7 +645,7 @@ class MainActivity : ComponentActivity() {
         if (getServiceState(this) == ServiceState.STOPPED && action == Actions.STOP) return
         Intent(this, EndlessService::class.java).also {
             it.action = action.name
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) { // Android 8+
                 log("Starting the service in >=26 Mode")
                 startForegroundService(it)
                 return
@@ -674,7 +659,7 @@ class MainActivity : ComponentActivity() {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             // Usar longVersionCode para API >= 28, y versionCode para versiones más antiguas
-            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { // Android 9+
                 packageInfo.longVersionCode.toString()
             } else {
                 @Suppress("DEPRECATION")
@@ -821,6 +806,7 @@ class MainActivity : ComponentActivity() {
 
     private fun actualizarColorMute() {
         // Cambia el color del boton mute segun el estado de la variable
+        log("actualizarColorMute")
         if (Login.mute){
             val green = ColorStateList.valueOf(Color.parseColor("#4CAF50"))
             btnVentana.backgroundTintList = green
