@@ -5,6 +5,7 @@
     <string name="close_list">Close</string>
     <string name="borrar_lista">Delete All</string>
     <string name="seleccionar_todas">Select all</string>
+    <string name="deseleccionar_todas">Clear all</string>
     <string name="set_alarm">ALARM</string>
     <string name="set_noti">NOTIF</string>
     <string name="version_app_info">App version info</string>
@@ -14,5 +15,6 @@
     <string name="hora_fin">End Hour</string>
     <string name="aceptar">Accept</string>
     <string name="cancelar">Cancel</string>
-    <string name="use_best_zones">Usar Best Zones</string>
+    <string name="use_best_zones">Use Best Zones</string>
+    <string name="select_best_zones">Select Best Zones</string>
 </resources>

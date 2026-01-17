@@ -9,6 +9,7 @@
     <string name="close_list">Cerrar</string>
     <string name="borrar_lista">Borrar</string>
     <string name="seleccionar_todas">Todas</string>
+    <string name="deseleccionar_todas">Ninguna</string>
     <string name="minuto_0_59" translatable="false">%1$d-59</string>
     <string name="set_alarm">ALARMA</string>
     <string name="set_noti">NOTIF</string>
@@ -17,11 +18,12 @@
     <string name="closeDB">Cerrar</string>
     <string name="borrarDB">Borrar DB</string>
     <string name="mute_app" translatable="false">Mute app</string>
-    <string name="hora_init">Hora init</string>
-    <string name="hora_fin">Hora fin</string>
-    <string name="use_best_zones">Use Best Zones</string>
+    <string name="hora_init">Hora inicial</string>
+    <string name="hora_fin">Hora final</string>
+    <string name="use_best_zones">Usar Best Zones</string>
     <string name="mute" translatable="false">Mute</string>
     <string name="aceptar">Aceptar</string>
     <string name="cancelar">Cancelar</string>
     <string name="mute_button" translatable="false">M</string>
+    <string name="select_best_zones">Seleccionar Best Zones</string>
 </resources>

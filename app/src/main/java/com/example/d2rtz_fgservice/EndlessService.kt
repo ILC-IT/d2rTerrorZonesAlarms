@@ -131,10 +131,10 @@ class EndlessService : Service() {
         // Desregistrar el BroadcastReceiver
         unregisterReceiver(updateAlarmReceiver)
 //        // Borro sharedpreferences
-//        val pref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
-//        val editor = pref.edit()
-//        editor.clear()
-//        editor.apply()
+        val pref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+        val editor = pref.edit()
+        editor.clear()
+        editor.apply()
 
         // Enviar un broadcast cuando el servicio se detiene
         val intent = Intent("EndlessService_DETENIDO")
@@ -371,7 +371,7 @@ class EndlessService : Service() {
         val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
         val formattedTime = simpleDateFormat.format(calendar.time)
         notifinfo = "Checkeo notificación: $formattedTime"
-//        Toast.makeText(this, notifinfo, Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Notif: $formattedTime", Toast.LENGTH_SHORT).show()
         log("Exact hourly alarm set for: ${calendar.time}")
     }
 
@@ -1022,7 +1022,8 @@ class EndlessService : Service() {
         return if (isWithinMutedInterval) {
             if (Login.rangoActivo) {
                 // Solo notificar si es una zona "buena"
-                isNameInSelectedItems(Login.BEST_ZONES, tzNext)
+//                isNameInSelectedItems(Login.BEST_ZONES, tzNext)
+                isNameInSelectedItems(Login.selectedBestZones, tzNext)
             } else {
                 // En rango mute, no notificar
                 false

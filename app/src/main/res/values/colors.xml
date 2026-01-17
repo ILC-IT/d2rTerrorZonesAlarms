@@ -12,6 +12,7 @@
     <color name="redStop">#C73A2B</color>
     <color name="scrollbar">#FF4081</color>
     <color name="marron">#555555</color>
+    <color name="grisfondo">#222222</color>
 
     <color name="mode">#FFFFFF</color>
     <color name="mode_secondary">#BAB7B7</color>

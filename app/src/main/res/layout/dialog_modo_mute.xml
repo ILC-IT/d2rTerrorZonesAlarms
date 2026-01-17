@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:fillViewport="true"
-    android:background="#222222">
+    android:background="@color/grisfondo">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -67,6 +67,15 @@
             android:text="@string/use_best_zones"
             android:textColor="#FFFFFF"
             android:layout_marginTop="16dp" />
+
+        <Button
+            android:id="@+id/btnSelectBestZones"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/select_best_zones"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#000000"
+            android:textColor="#FFFFFF"/>
 
         <CheckBox
             android:id="@+id/checkBoxMute"

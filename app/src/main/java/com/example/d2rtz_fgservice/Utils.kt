@@ -18,7 +18,15 @@ class Login {
         const val MINUTOPARANOTIF = 11 // Minuto predeterminado para notificación. NO debe ser menor que DELAYAPIDEFAULT
         const val DELAYAPIDEFAULT = 11 // Minuto predeterminado para que la api retorne resultados. NO debe ser menor al valor delayApi retornado por la API
         //////////////////////////// MUTE APP /////////////////////////
-        val BEST_ZONES = arrayOf("Throne of Destruction", "Tal Rasha's Tombs", "Chaos Sanctuary").toList()
+        val BEST_ZONES = ZONAS.items.toTypedArray().toList()
+//        val BEST_ZONES = arrayOf(
+//            "Throne of Destruction",
+//            "Tal Rasha's Tombs",
+//            "Chaos Sanctuary",
+//            "Flayer Jungle and Dungeon",
+//            "Stony Tomb - Rocky Waste"
+//        ).toList()
+        var selectedBestZones: List<String> = emptyList()
         var horaInicio: Int = -1
         var horaFin: Int = -1
         var rangoActivo: Boolean = false
@@ -32,6 +40,9 @@ object DBConfig {
         const val OLDZONESTODELETE = (3L * 24 * 60 * 60 * 1000) // Borrar zonas de hace más de 3 días
 }
 
+
+
+// Terror Zones, no cambiarlas
 object ZONAS {
     val items = listOf(
         "Throne of Destruction",

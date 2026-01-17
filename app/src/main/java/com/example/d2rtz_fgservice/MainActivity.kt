@@ -21,6 +21,7 @@ import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.CheckedTextView
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -156,6 +157,7 @@ class MainActivity : ComponentActivity() {
         btnSetAlarm.setOnClickListener {
             // Verificar si el servicio está activo
             if (getServiceState(this) == ServiceState.STOPPED) {
+                minuteInput.setText(Login.MINUTOPARAALARMASDEFAULT.toString())
                 Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer la alarma.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -191,6 +193,7 @@ class MainActivity : ComponentActivity() {
         btnSetNotif.setOnClickListener {
             // Verificar si el servicio está activo
             if (getServiceState(this) == ServiceState.STOPPED) {
+                minuteNotifInput.setText(Login.MINUTOPARANOTIF.toString())
                 Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer la notificación.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -272,6 +275,8 @@ class MainActivity : ComponentActivity() {
                 if (intent?.action == "EndlessService_DETENIDO") {
                     val red = ColorStateList.valueOf(Color.parseColor("#B00020"))
                     btnVentana.backgroundTintList = red
+                    minuteInput.setText(Login.MINUTOPARAALARMASDEFAULT.toString())
+                    minuteNotifInput.setText(Login.MINUTOPARANOTIF.toString())
                 }
                 if (intent?.action == "MUTE_STATE_CHANGED") {
 //                    val newState = intent.getBooleanExtra("muteState", false)
@@ -390,6 +395,7 @@ class MainActivity : ComponentActivity() {
         val checkBoxMute = dialog.findViewById<CheckBox>(R.id.checkBoxMute)
         val btnAccept = dialog.findViewById<Button>(R.id.btnAccept)
         val btnCancel = dialog.findViewById<Button>(R.id.btnCancel)
+        val btnSelectBestZones = dialog.findViewById<Button>(R.id.btnSelectBestZones)
 
         // Mostrar valores actuales o por defecto
         if (Login.horaInicio == -1 && Login.horaFin == -1) {
@@ -402,6 +408,131 @@ class MainActivity : ComponentActivity() {
 
         checkBoxRango.isChecked = Login.rangoActivo
         checkBoxMute.isChecked = Login.mute
+
+        // Copia temporal de las selecciones actuales
+        val tempSelectedZones: MutableList<String> =
+            if (Login.rangoActivo)
+                Login.selectedBestZones.toMutableList()
+            else
+                mutableListOf()
+
+        // Mostrar u ocultar según el estado inicial del checkbox
+        btnSelectBestZones.visibility = if (checkBoxRango.isChecked) View.VISIBLE else View.GONE
+        checkBoxRango.setOnCheckedChangeListener { _, isChecked ->
+            btnSelectBestZones.visibility = if (isChecked) View.VISIBLE else View.GONE
+
+//            if (!isChecked) {
+//                // Reiniciar seleccion best zones si usar best zones esta desmarcado
+//                Login.selectedBestZones = emptyList()
+//                Log.d("BestZones", "Best Zones reiniciadas (checkbox desmarcado)")
+//            }
+        }
+
+        // Abrir selector best zones
+        btnSelectBestZones.setOnClickListener {
+
+            // Si se vuelve a abrir el dialogo de seleccionar zonas, las selecciones previas apareceran marcadas
+            val selectedFlags = BooleanArray(Login.BEST_ZONES.size) { index ->
+                tempSelectedZones.contains(Login.BEST_ZONES[index])
+            }
+
+            val adapter = object : ArrayAdapter<String>(
+                this,
+                R.layout.item_best_zone,
+                android.R.id.text1,
+                Login.BEST_ZONES
+            ) {
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    val view = super.getView(position, convertView, parent)
+                    val checkedTextView = view.findViewById<CheckedTextView>(android.R.id.text1)
+                    checkedTextView.isChecked = selectedFlags[position]
+                    return view
+                }
+            }
+
+            val builder = AlertDialog.Builder(this, R.style.MyAlertDialogTheme)
+                .setTitle(getString(R.string.select_best_zones))
+//                .setPositiveButton(getString(R.string.aceptar)) { _, _ ->
+//                    Login.selectedBestZones =
+//                        Login.BEST_ZONES.filterIndexed { index, _ ->
+//                            selectedFlags[index]
+//                        }
+//                    Log.d("BestZones", "Zonas seleccionadas (Aceptar): ${Login.selectedBestZones}")
+//                }
+                .setPositiveButton(getString(R.string.aceptar)) { _, _ ->
+                    tempSelectedZones.clear()
+                    Login.BEST_ZONES.forEachIndexed { index, zone ->
+                        if (selectedFlags[index]) {
+                            tempSelectedZones.add(zone)
+                        }
+                    }
+                }
+                .setNegativeButton(getString(R.string.cancelar), null)
+                .setNeutralButton(getString(R.string.seleccionar_todas), null)
+                .setAdapter(adapter, null)
+
+            val dialogZones = builder.create()
+            dialogZones.show()
+
+            // Boton seleccionar/deseleccionar todas las best zones
+            val btnSelectAll = dialogZones.getButton(AlertDialog.BUTTON_NEUTRAL)
+
+            fun updateNeutralText() {
+                btnSelectAll.text =
+                    if (selectedFlags.all { it })
+                        getString(R.string.deseleccionar_todas)
+                    else
+                        getString(R.string.seleccionar_todas)
+            }
+
+            updateNeutralText()
+
+            btnSelectAll.setOnClickListener {
+                val selectAll = selectedFlags.any { !it }
+
+                for (i in selectedFlags.indices) {
+                    selectedFlags[i] = selectAll
+                }
+
+                // Refrescar lista
+                for (i in 0 until dialogZones.listView.childCount) {
+                    val item = dialogZones.listView.getChildAt(i)
+                        ?.findViewById<CheckedTextView>(android.R.id.text1)
+                    item?.isChecked = selectAll
+                }
+
+                updateNeutralText()
+            }
+
+            // Hacer mas alto el dialogo de best zones
+            dialogZones.window?.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            val displayMetrics = resources.displayMetrics
+            val maxHeight = (displayMetrics.heightPixels * 0.8).toInt() // Cambiar 0.8 para variar altura
+            dialogZones.listView.layoutParams.height = maxHeight
+
+//            Log.d("BestZones", selectedFlags.contentToString())
+
+            // Manejar clicks en cada item (que no cierre el diálogo)
+            dialogZones.listView.setOnItemClickListener { _, view, position, _ ->
+                selectedFlags[position] = !selectedFlags[position]
+                val checkedTextView = view.findViewById<CheckedTextView>(android.R.id.text1)
+                checkedTextView.isChecked = selectedFlags[position]
+                updateNeutralText()
+//                Log.d("BestZones","Zona '${Login.BEST_ZONES[position]}' -> ${if (selectedFlags[position]) "SELECCIONADA" else "DESELECCIONADA"}")
+            }
+
+            dialogZones.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setTextColor(Color.WHITE)
+
+            dialogZones.getButton(AlertDialog.BUTTON_NEGATIVE)
+                .setTextColor(Color.WHITE)
+
+            dialogZones.getButton(AlertDialog.BUTTON_NEUTRAL)
+                .setTextColor(Color.WHITE)
+        }
 
         btnAccept.setOnClickListener {
             val inicio = editHoraInicio.text.toString().toIntOrNull()
@@ -424,11 +555,27 @@ class MainActivity : ComponentActivity() {
 //                return@setOnClickListener
 //            }
 
+            if (rangoActivo && tempSelectedZones.isEmpty()) {
+                Toast.makeText(this, "Selecciona al menos una Best Zone", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
             // Guardar los valores
             Login.horaInicio = inicio ?: 0
             Login.horaFin = fin ?: 0
             Login.rangoActivo = rangoActivo
             Login.mute = mute
+            Login.selectedBestZones =
+                if (rangoActivo)
+                    tempSelectedZones.toList()
+                else
+                    emptyList()
+
+            if (!rangoActivo) {
+                Log.d("BestZones", "Best Zones reiniciadas (Aceptar Mute)")
+            }
+
+            Log.d("BestZonesssss", "Zonas activas: ${Login.selectedBestZones}")
 
             // Cambiar de color el boton M segun mute
             actualizarColorMute()
@@ -437,15 +584,17 @@ class MainActivity : ComponentActivity() {
                 Login.horaInicio,
                 Login.horaFin,
                 Login.rangoActivo,
-                Login.mute
+                Login.mute,
+                Login.selectedBestZones
             )
 
-            Toast.makeText(this, "Configuración guardada", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Configuración mute guardada", Toast.LENGTH_SHORT).show()
             dialog.dismiss()
         }
 
         // Botón cancelar, cerrar sin guardar
         btnCancel.setOnClickListener {
+//            Login.selectedBestZones = tempSelectedZones.toList()
             dialog.dismiss()
         }
 
@@ -464,7 +613,8 @@ class MainActivity : ComponentActivity() {
         horaInicio: Int,
         horaFin: Int,
         rangoActivo: Boolean,
-        mute: Boolean
+        mute: Boolean,
+        selectedBestZones: List<String>
     ) {
         val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
         prefs.edit().apply {
@@ -472,6 +622,7 @@ class MainActivity : ComponentActivity() {
             putInt("horaFin", horaFin)
             putBoolean("rangoActivo", rangoActivo)
             putBoolean("mute", mute)
+            putStringSet("selectedBestZones", selectedBestZones.toSet())
             apply()
         }
     }
@@ -482,6 +633,7 @@ class MainActivity : ComponentActivity() {
         Login.horaFin = prefs.getInt("horaFin", -1)
         Login.rangoActivo = prefs.getBoolean("rangoActivo", false)
         Login.mute = prefs.getBoolean("mute", false)
+        Login.selectedBestZones = prefs.getStringSet("selectedBestZones", emptySet())!!.toList()
     }
 
     private fun checkApiImmediately() {

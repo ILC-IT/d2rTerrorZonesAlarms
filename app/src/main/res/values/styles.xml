@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="MyAlertDialogTheme" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <!-- Fondo -->
+        <item name="android:windowBackground">@color/grisfondo</item>
+
+        <!-- Título -->
+        <item name="android:textColorPrimary">@android:color/white</item>
+
+        <!-- Texto de la lista -->
+        <item name="android:textColorSecondary">@android:color/white</item>
+
+        <!-- CheckBox -->
+<!--        <item name="colorControlActivated">@android:color/white</item>-->
+    </style>
+</resources>
