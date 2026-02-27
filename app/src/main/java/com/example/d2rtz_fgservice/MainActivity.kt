@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
     private val selectedItems = mutableSetOf<String>()
     private lateinit var adapter: ItemsAdapter
     private var delayApi: Int = Login.DELAYAPIDEFAULT
+    private var errorDelayApi: String = ""
     private lateinit var receiver: BroadcastReceiver
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -177,6 +178,12 @@ class MainActivity : ComponentActivity() {
                         action = "UPDATE_ALARM_ACTION"
                         putExtra("NEW_MINUTE", selectedMinute)
                     }
+
+                    val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+                    val editor = preferences.edit()
+                    editor.putInt("minutoParaAlarmas", selectedMinute)
+                    editor.apply()
+
                     sendBroadcast(updateIntent)
                     log("Broadcast sent with minuto alarma seleccionado = $selectedMinute")
                 } else {
@@ -213,6 +220,12 @@ class MainActivity : ComponentActivity() {
                         action = "UPDATE_NOTIF_ACTION"
                         putExtra("NEW_NOTIF_MINUTE", selectedMinute)
                     }
+
+                    val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+                    val editor = preferences.edit()
+                    editor.putInt("minutoParaNotif", selectedMinute)
+                    editor.apply()
+
                     sendBroadcast(updateIntent)
                     log("Broadcast sent with minuto notificación seleccionado = $selectedMinute")
                 } else {
@@ -230,10 +243,15 @@ class MainActivity : ComponentActivity() {
             val version = getAppVersion(this)
             // Actualizo tamaño de DB
             EndlessService.sizeDBBytes = getDBTotalSize(this@MainActivity)
+            // Miro tiempo de ejecución
+            val uptime = EndlessService.getServiceUptime()
+            // Fuerzo actualizacion de delayApi por si está en primer plano sin cambiar
+            updateDelayApi()
             // Muestro resultado
             val resultado =
                 "App: $version\n" +
-                "API Delay: xx:$delayApi\n" +
+                "$uptime\n" +
+                "API Delay: XX:%02d $errorDelayApi\n".format(delayApi) +
                 "${EndlessService.alarmaInfo}\n" +
                 "${EndlessService.notifinfo}\n" +
                 "DB: ${EndlessService.sizeDBBytes/1024}KB\n" +
@@ -275,8 +293,24 @@ class MainActivity : ComponentActivity() {
                 if (intent?.action == "EndlessService_DETENIDO") {
                     val red = ColorStateList.valueOf(Color.parseColor("#B00020"))
                     btnVentana.backgroundTintList = red
-                    minuteInput.setText(Login.MINUTOPARAALARMASDEFAULT.toString())
-                    minuteNotifInput.setText(Login.MINUTOPARANOTIF.toString())
+
+                    val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+                    val savedMinute: Int = if (preferences.contains("minutoParaAlarmas")) {
+                        preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT)
+                    } else {
+                        Login.MINUTOPARAALARMASDEFAULT
+                    }
+                    minuteInput.setText(String.format(Locale.getDefault(), "%d", savedMinute))
+
+//                    val savedMinuteNotif: Int = if (preferences.contains("minutoParaNotif")) {
+//                        preferences.getInt("minutoParaNotif", Login.MINUTOPARANOTIF)
+//                    } else {
+//                        Login.MINUTOPARANOTIF
+//                    }
+                    val editor = preferences.edit()
+                    editor.putInt("minutoParaNotif", Login.MINUTOPARANOTIF)
+                    editor.apply()
+                    minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", Login.MINUTOPARANOTIF))
                 }
                 if (intent?.action == "MUTE_STATE_CHANGED") {
 //                    val newState = intent.getBooleanExtra("muteState", false)
@@ -422,7 +456,7 @@ class MainActivity : ComponentActivity() {
             btnSelectBestZones.visibility = if (isChecked) View.VISIBLE else View.GONE
 
 //            if (!isChecked) {
-//                // Reiniciar seleccion best zones si usar best zones esta desmarcado
+//                // Reiniciar seleccion best zones si usar best zones está desmarcado
 //                Login.selectedBestZones = emptyList()
 //                Log.d("BestZones", "Best Zones reiniciadas (checkbox desmarcado)")
 //            }
@@ -431,7 +465,7 @@ class MainActivity : ComponentActivity() {
         // Abrir selector best zones
         btnSelectBestZones.setOnClickListener {
 
-            // Si se vuelve a abrir el dialogo de seleccionar zonas, las selecciones previas apareceran marcadas
+            // Si se vuelve a abrir el diálogo de seleccionar zonas, las selecciones previas apareceran marcadas
             val selectedFlags = BooleanArray(Login.BEST_ZONES.size) { index ->
                 tempSelectedZones.contains(Login.BEST_ZONES[index])
             }
@@ -504,7 +538,7 @@ class MainActivity : ComponentActivity() {
                 updateNeutralText()
             }
 
-            // Hacer mas alto el dialogo de best zones
+            // Hacer más alto el diálogo de best zones
             dialogZones.window?.setLayout(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -515,7 +549,7 @@ class MainActivity : ComponentActivity() {
 
 //            Log.d("BestZones", selectedFlags.contentToString())
 
-            // Manejar clicks en cada item (que no cierre el diálogo)
+            // Manejar clics en cada item (que no cierre el diálogo)
             dialogZones.listView.setOnItemClickListener { _, view, position, _ ->
                 selectedFlags[position] = !selectedFlags[position]
                 val checkedTextView = view.findViewById<CheckedTextView>(android.R.id.text1)
@@ -577,7 +611,7 @@ class MainActivity : ComponentActivity() {
 
             Log.d("BestZonesssss", "Zonas activas: ${Login.selectedBestZones}")
 
-            // Cambiar de color el boton M segun mute
+            // Cambiar de color el boton M según mute
             actualizarColorMute()
 
             guardarPreferenciasModoMute(
@@ -670,7 +704,7 @@ class MainActivity : ComponentActivity() {
                         // Procesar datos válidos
                         // Validar listas vacías antes de acceder
                         tzCurrent = if (terrorZone.current.isNotEmpty()) {
-                            if (terrorZone.current.size > 10) {
+                            if (terrorZone.current.size > Login.WINTERMINZONES) {
                                 "Winter event is ON."
                             } else {
                                 buscarEnMapa(terrorZone.current[0])
@@ -681,7 +715,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         tzNext = if (terrorZone.next.isNotEmpty()) {
-                            if (terrorZone.next.size > 10) {
+                            if (terrorZone.next.size > Login.WINTERMINZONES) {
                                 "Terror zones activated"
                             } else {
                                 buscarEnMapa(terrorZone.next[0])
@@ -858,7 +892,7 @@ class MainActivity : ComponentActivity() {
             val adapter = ArrayAdapter(
                 this@MainActivity,
                 R.layout.list_item_custom, // Aquí usamos nuestro diseño personalizado
-                zones.map { "${formatTimestamp(it.timestamp)} - ${it.zoneName}" }
+                zones.map { "${formatTimestamp(it.timestampHour)} - ${it.zoneName}" }
             )
 
             // Configurar el adaptador en el ListView
@@ -941,13 +975,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun formatTimestamp(timestamp: Long): String {
-        val dateFormat = SimpleDateFormat("dd/MM/yy H':00'", Locale.getDefault())
+        val dateFormat = SimpleDateFormat("dd/MM/yy H:mm", Locale.getDefault())
         return dateFormat.format(Date(timestamp))
     }
 
     private fun showSnackbar(view: View, message: String) {
         Snackbar.make(view, message, Snackbar.LENGTH_LONG)
-            .setTextMaxLines(6) // Permite hasta 6 líneas
+            .setTextMaxLines(7) // Permite hasta 7 líneas
             .show()
     }
 
@@ -957,7 +991,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun actualizarColorMute() {
-        // Cambia el color del boton mute segun el estado de la variable
+        // Cambia el color del boton mute según el estado de la variable
         log("actualizarColorMute")
         if (Login.mute){
             val green = ColorStateList.valueOf(Color.parseColor("#4CAF50"))
@@ -966,6 +1000,45 @@ class MainActivity : ComponentActivity() {
         else{
             val red = ColorStateList.valueOf(Color.parseColor("#B00020"))
             btnVentana.backgroundTintList = red
+        }
+    }
+
+    private fun updateDelayApi(){
+        val url = Login.URL
+
+        try {
+            Fuel.get(url)
+                .appendHeader("x-emu-username", Login.USERNAME)
+                .appendHeader("x-emu-token", Login.TOKEN)
+                .responseObject(TerrorZone.Deserializer())
+                { _, _, result ->
+                    val (terrorZone, error) = result
+
+                    if (error != null) {
+                        log("[response error] ${error.message}")
+                        errorDelayApi = "Error API"
+                        return@responseObject
+                    }
+
+                    if (terrorZone != null) {
+                        // Manejar el caso de error desde la respuesta deserializada
+                        if (terrorZone.error != null) {
+                            log("checkApiImmediately API Error: ${terrorZone.error}")
+                            errorDelayApi = "Error API"
+                            return@responseObject
+                        }
+
+                        // Procesar datos válidos
+                        delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
+                        errorDelayApi = ""
+                        val hint = getString(R.string.minuto_0_59, delayApi)
+                        findViewById<EditText>(R.id.minuteInput).hint = hint
+                        findViewById<EditText>(R.id.minuteNotifInput).hint = hint
+                    }
+                }
+        } catch (e: Exception) {
+            log("Error making the request: ${e.message}")
+            errorDelayApi = "Error making the request"
         }
     }
 

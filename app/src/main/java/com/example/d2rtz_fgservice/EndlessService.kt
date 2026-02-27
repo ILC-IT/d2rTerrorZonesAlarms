@@ -54,12 +54,25 @@ class EndlessService : Service() {
     private var delayApi: Int = Login.DELAYAPIDEFAULT
     private var minutoParaAlarmas: Int = Login.MINUTOPARAALARMASDEFAULT
     private var minutoParaNotif: Int = Login.MINUTOPARANOTIF
+    private var serviceStartTime: Long = 0L // Guarda el momento en que el servicio se inició
 
     companion object {
         // Para que sean accedidas desde MainActivity
         var alarmaInfo: String = "Alarma"
         var notifinfo: String = "Notif"
         var sizeDBBytes: Long = 0
+
+        private var instance: EndlessService? = null
+        fun getServiceUptime(): String {
+            val start = instance?.serviceStartTime ?: return "Servicio no activo"
+            val millis = SystemClock.elapsedRealtime() - start
+            val seconds = millis / 1000
+            val days = seconds / 86400
+            val hours = (seconds % 86400) / 3600
+            val minutes = (seconds % 3600) / 60
+            val remainingSeconds = seconds % 60
+            return "Servicio activo: ${days}d ${hours}h ${minutes}m ${remainingSeconds}s"
+        }
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -124,6 +137,10 @@ class EndlessService : Service() {
         } else {
             registerReceiver(updateAlarmReceiver, filter)
         }
+
+        //Para ver el tiempo de ejecucion del servicio
+        serviceStartTime = SystemClock.elapsedRealtime()
+        instance = this
     }
 
     override fun onDestroy() {
@@ -131,10 +148,10 @@ class EndlessService : Service() {
         // Desregistrar el BroadcastReceiver
         unregisterReceiver(updateAlarmReceiver)
 //        // Borro sharedpreferences
-        val pref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
-        val editor = pref.edit()
-        editor.clear()
-        editor.apply()
+//        val pref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+//        val editor = pref.edit()
+//        editor.clear()
+//        editor.apply()
 
         // Enviar un broadcast cuando el servicio se detiene
         val intent = Intent("EndlessService_DETENIDO")
@@ -142,6 +159,8 @@ class EndlessService : Service() {
 
         log("The service has been destroyed".uppercase())
         Toast.makeText(this, "Service destroyed", Toast.LENGTH_SHORT).show()
+
+        instance = null
     }
 
     override fun onTaskRemoved(rootIntent: Intent) {
@@ -189,6 +208,13 @@ class EndlessService : Service() {
 
         // Configurar la primera alarma para despertar al telefono
         // e iniciar el chequeo de la API y las alarmas repetitivas
+        // Compruebo si existe valor guardado y si no pongo el por defecto
+        val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
+        this.minutoParaAlarmas = if (preferences.contains("minutoParaAlarmas")) {
+            preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT)
+        } else {
+            Login.MINUTOPARAALARMASDEFAULT
+        }
         setInitialAlarm(minutoParaAlarmas)
 
         // Consultar el check del boton mute
@@ -371,7 +397,7 @@ class EndlessService : Service() {
         val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
         val formattedTime = simpleDateFormat.format(calendar.time)
         notifinfo = "Checkeo notificación: $formattedTime"
-        Toast.makeText(this, "Notif: $formattedTime", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, "Notif: $formattedTime", Toast.LENGTH_SHORT).show()
         log("Exact hourly alarm set for: ${calendar.time}")
     }
 
@@ -540,7 +566,7 @@ class EndlessService : Service() {
                         // Procesar datos válidos
                         // Validar listas vacías antes de acceder
                         tzCurrent = if (terrorZone.current.isNotEmpty()) {
-                            if (terrorZone.current.size > 10) {
+                            if (terrorZone.current.size > Login.WINTERMINZONES) {
                                 "Winter event is ON."
                             } else {
                                 buscarEnMapa(terrorZone.current[0])
@@ -551,7 +577,7 @@ class EndlessService : Service() {
                         }
 
                         tzNext = if (terrorZone.next.isNotEmpty()) {
-                            if (terrorZone.next.size > 10) {
+                            if (terrorZone.next.size > Login.WINTERMINZONES) {
                                 "Terror zones activated"
                             } else {
                                 buscarEnMapa(terrorZone.next[0])
@@ -658,14 +684,16 @@ class EndlessService : Service() {
                         log("[response error] ${error.message}")
                         tzCurrent = "ERROR API / BLOQUEO"
                         tzNext = ""
-                        updateForegroundNotification("Wait until XX:$minutoParaNotif")
+                        updateForegroundNotification("Wait until XX:%02d".format(delayApi))
                         val calendar = Calendar.getInstance()
                         val currentMinutes = calendar.get(Calendar.MINUTE)
                         if (currentMinutes >= minutoParaNotif) {
                             setHourlyUpdateAtExactHour(1)
                             return@responseObject
-                        } else {
+                        } else if (minutoParaNotif >= delayApi) {
                             setHourlyUpdateAtExactHour(minutoParaNotif)
+                        } else {
+                            setHourlyUpdateAtExactHour(delayApi)
                             return@responseObject
                         }
                     }
@@ -687,8 +715,10 @@ class EndlessService : Service() {
                             if (currentMinutes >= minutoParaNotif) {
                                 setHourlyUpdateAtExactHour(1)
                                 return@responseObject
-                            } else {
+                            } else if (minutoParaNotif >= delayApi) {
                                 setHourlyUpdateAtExactHour(minutoParaNotif)
+                            } else {
+                                setHourlyUpdateAtExactHour(delayApi)
                                 return@responseObject
                             }
                         }
@@ -696,7 +726,7 @@ class EndlessService : Service() {
                         // Procesar datos válidos
                         // Validar listas vacías antes de acceder
                         tzCurrent = if (terrorZone.current.isNotEmpty()) {
-                            if (terrorZone.current.size > 10) {
+                            if (terrorZone.current.size > Login.WINTERMINZONES) {
                                 "Winter event is ON."
                             } else {
                                 buscarEnMapa(terrorZone.current[0])
@@ -707,7 +737,7 @@ class EndlessService : Service() {
                         }
 
                         tzNext = if (terrorZone.next.isNotEmpty()) {
-                            if (terrorZone.next.size > 10) {
+                            if (terrorZone.next.size > Login.WINTERMINZONES) {
                                 "Terror zones activated"
                             } else {
                                 buscarEnMapa(terrorZone.next[0])
@@ -775,7 +805,7 @@ class EndlessService : Service() {
                         updateForegroundNotification(salida)
 //                        log("salida = $salida")
 
-                        // Actualiza vista de mainActivity para cuando la pantalla esta activa
+                        // Actualiza vista de mainActivity para cuando la pantalla está activa
                         val intent = Intent("UPDATE_TZNEXT")
                         intent.putExtra("new_tzcurrent", tzCurrent)
                         intent.putExtra("new_tznext", "$salida $tzNext")
@@ -993,7 +1023,12 @@ class EndlessService : Service() {
     private fun truncateToHour(timestamp: Long): Long {
         val calendar = Calendar.getInstance().apply {
             timeInMillis = timestamp
-            set(Calendar.MINUTE, 0)
+            val currentMinute = get(Calendar.MINUTE)
+            if (currentMinute in 0..29) {
+                set(Calendar.MINUTE, 0)
+            } else { // 30..59
+                set(Calendar.MINUTE, 30)
+            }
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
@@ -1012,10 +1047,10 @@ class EndlessService : Service() {
 
         // Verificar si estamos dentro del intervalo silenciado
         val isWithinMutedInterval = if (start < end) {
-            // Ej: 5-7, mute entre 5:00 y 6:59
+            // Ej.: 5-7, mute entre 5:00 y 6:59
             currentHour in start..<end // currentHour >= start && currentHour < end
         } else {
-            // Ej: 22-5, mute entre 22:00 y 4:59
+            // Ej.: 22-5, mute entre 22:00 y 4:59
             currentHour >= start || currentHour < end
         }
 

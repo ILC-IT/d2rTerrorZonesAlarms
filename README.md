@@ -1,3 +1,6 @@
+# v1.38
+- Update zones for RotW. Added app uptime inside "I" button. minutoAlarm saved in sharedPreferences.
+
 # v1.37
 - Added a dialog to select the "best zones" when the "Use Best Zones" checkbox is pressed, for which the application is not muted even if "Mute" is active.
 
