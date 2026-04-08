@@ -43,7 +43,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-class EndlessService : Service() {
+class EndlessService_backup : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var isServiceStarted: Boolean = false
@@ -53,19 +53,12 @@ class EndlessService : Service() {
     private var tzNextAvailableHour: Long = 0L
     private var delayApi: Int = Login.DELAYAPIDEFAULT
     private var minutoParaAlarmas: Int = Login.MINUTOPARAALARMASDEFAULT
-    private var minutoParaAlarmas2: Int = Login.MINUTOPARAALARMAS2DEFAULT
     private var minutoParaNotif: Int = Login.MINUTOPARANOTIF
     private var serviceStartTime: Long = 0L // Guarda el momento en que el servicio se inició
-    data class SlotInfo(
-        val slot1: Int,
-        val slot2: Int,
-        val currentMinutes: Int
-    )
 
     companion object {
         // Para que sean accedidas desde MainActivity
-        var alarmaInfo: String = "Alarma 1"
-        var alarma2Info: String = "Alarma 2"
+        var alarmaInfo: String = "Alarma"
         var notifinfo: String = "Notif"
         var sizeDBBytes: Long = 0
 
@@ -97,14 +90,14 @@ class EndlessService : Service() {
                 Actions.START.name -> startService()
                 Actions.STOP.name -> stopService()
                 "CHECK_API" -> {
-                    startApiCheckLoop() // Ejecuta el bucle de verificación de la API y programa la siguiente alarma 1
-                }
-                "CHECK_API2" -> {
-                    startApi2CheckLoop() // Ejecuta el bucle de verificación de la API y programa la siguiente alarma 2
+                    startApiCheckLoop() // Ejecuta el bucle de verificación de la API y programa la siguiente alarma
                 }
                 "CHECK_API_NOTIFICATION" -> {
                     startApiNotificationLoop() // Ejecuta la API y programa la siguiente alarma para actualizar la notificacion de fgService
                 }
+//                "COLOR_MUTE_UPDATE" -> {
+//                    startCheckMuteLoop() // Comprueba el estado del mute al inicio de cada hora
+//                }
                 else -> log("This should never happen. No action in the received intent")
             }
         } else {
@@ -137,7 +130,7 @@ class EndlessService : Service() {
         // Registrar el BroadcastReceiver para actualizar las alarmas
         val filter = IntentFilter().apply {
             addAction("UPDATE_ALARM_ACTION")
-            addAction("UPDATE_ALARM2_ACTION")
+            addAction("UPDATE_NOTIF_ACTION")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13+
             registerReceiver(updateAlarmReceiver, filter, RECEIVER_NOT_EXPORTED)
@@ -192,8 +185,8 @@ class EndlessService : Service() {
     }
 
     private var serviceJob: Job? = null
-    private var serviceJob2: Job? = null
     private var notificationJob: Job? = null
+//    private var muteJob: Job?= null
 
     private fun startService() {
         if (isServiceStarted) return
@@ -215,7 +208,7 @@ class EndlessService : Service() {
 
         // Configurar la primera alarma para despertar al telefono
         // e iniciar el chequeo de la API y las alarmas repetitivas
-        // Compruebo si existe valor guardado y si no pongo el de por defecto
+        // Compruebo si existe valor guardado y si no pongo el por defecto
         val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
         this.minutoParaAlarmas = if (preferences.contains("minutoParaAlarmas")) {
             preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT)
@@ -224,12 +217,8 @@ class EndlessService : Service() {
         }
         setInitialAlarm(minutoParaAlarmas)
 
-        this.minutoParaAlarmas2 = if (preferences.contains("minutoParaAlarmas2")) {
-            preferences.getInt("minutoParaAlarmas2", Login.MINUTOPARAALARMAS2DEFAULT)
-        } else {
-            Login.MINUTOPARAALARMAS2DEFAULT
-        }
-        setInitialAlarm2(minutoParaAlarmas2)
+        // Consultar el check del boton mute
+//        setHourlyUpdateAtExactHourMute(0)
     }
 
     private fun startApiCheckLoop() {
@@ -238,19 +227,8 @@ class EndlessService : Service() {
         serviceJob = CoroutineScope(Dispatchers.IO).launch {
             // Checkear la API
             checkApi()
-            // Configurar la próxima alarma 1 horaria
+            // Configurar la próxima alarma horaria
             setHourlyAlarm(minutoParaAlarmas)
-        }
-    }
-
-    private fun startApi2CheckLoop() {
-        if (!isServiceStarted) return
-
-        serviceJob2 = CoroutineScope(Dispatchers.IO).launch {
-            // Checkear la API
-            checkApi()
-            // Configurar la próxima alarma 2 horaria
-            setHourlyAlarm2(minutoParaAlarmas2)
         }
     }
 
@@ -262,6 +240,17 @@ class EndlessService : Service() {
             checkApiForNotification()
         }
     }
+
+//    private fun startCheckMuteLoop() {
+//        if (!isServiceStarted) return
+//
+//        muteJob = CoroutineScope(Dispatchers.IO).launch {
+//            // Checkear el mute y actualizar las variables y el color
+//            desactivarMuteAuto()
+//            // Consultar el check del boton mute
+//            setHourlyUpdateAtExactHourMute(0)
+//        }
+//    }
 
     private fun stopService() {
         log("Stopping the foreground service")
@@ -276,27 +265,25 @@ class EndlessService : Service() {
             // Cancelar la corutina en ejecución
             serviceJob?.cancel()
             serviceJob = null
-            serviceJob2?.cancel()
-            serviceJob2 = null
             notificationJob?.cancel()
             notificationJob = null
+//            muteJob?.cancel()
+//            muteJob = null
 
             // Cancelar todas las alarmas
             cancelInitialAlarm()
-            cancelInitialAlarm2()
             cancelHourlyAlarm()
-            cancelHourlyAlarm2()
             cancelHourlyUpdateAtExactHour()
+//            cancelHourlyUpdateAtExactHourMute()
 
             // Eliminar ModoMuteConfig
             val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
             prefs.edit().clear().apply()
-            // Valores por defecto de los botones del "mute"
+            // Valores por defecto de los botones del mute
             Login.horaInicio = -1
             Login.horaFin = -1
             Login.rangoActivo = false
             Login.mute = false
-            Login.ultimaDesactivacionAuto = ""
 
             stopForeground(STOP_FOREGROUND_DETACH)
             stopSelf()
@@ -338,45 +325,9 @@ class EndlessService : Service() {
         // Formateo de la hora para el toast
         val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
         val formattedTime = simpleDateFormat.format(calendar.time)
-        alarmaInfo = "Alarma 1: $formattedTime"
-        Toast.makeText(this, "Alarma 1: $formattedTime", Toast.LENGTH_SHORT).show()
-        log("Initial alarm 1 set for: ${calendar.time}")
-    }
-
-    private fun setInitialAlarm2(minutoParaAlarmas: Int) {
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, AlarmReceiver::class.java).apply {
-            action = "START_API_CHECK_ACTION2"
-        }
-        val pendingIntent = PendingIntent.getBroadcast(this, 4, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-        cancelInitialAlarm2()
-
-        // Obtener el tiempo actual
-        val calendar = Calendar.getInstance()
-
-        // Establecer los minutos de la alarma
-        calendar.set(Calendar.MINUTE, minutoParaAlarmas)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-
-        // Si el tiempo ya ha pasado, ajustar la alarma para la siguiente hora
-        if (calendar.timeInMillis <= System.currentTimeMillis()) {
-            calendar.add(Calendar.HOUR_OF_DAY, 1)
-        }
-
-        // Establecer la alarma para el tiempo calculado
-        val triggerAtMillis = calendar.timeInMillis
-//        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-        val ac = AlarmClockInfo(triggerAtMillis, null)
-        alarmManager.setAlarmClock(ac, pendingIntent)
-
-        // Formateo de la hora para el toast
-        val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
-        val formattedTime = simpleDateFormat.format(calendar.time)
-        alarma2Info = "Alarma 2: $formattedTime"
-        Toast.makeText(this, "Alarma 2: $formattedTime", Toast.LENGTH_SHORT).show()
-        log("Initial alarm 2 set for: ${calendar.time}")
+        alarmaInfo = "Alarma: $formattedTime"
+        Toast.makeText(this, "Alarma: $formattedTime", Toast.LENGTH_SHORT).show()
+        log("Initial alarm set for: ${calendar.time}")
     }
 
     private fun setHourlyAlarm(minutoParaAlarmas: Int) {
@@ -409,45 +360,11 @@ class EndlessService : Service() {
         // Formateo de la hora para el log
         val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
         val formattedTime = simpleDateFormat.format(calendar.time)
-        alarmaInfo = "Alarma 1: $formattedTime"
-        log("Hourly alarm 1 set for: ${calendar.time}")
+        alarmaInfo = "Alarma: $formattedTime"
+        log("Hourly alarm set for: ${calendar.time}")
     }
 
-    private fun setHourlyAlarm2(minutoParaAlarmas: Int) {
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, AlarmReceiver::class.java).apply {
-            action = "HOURLY_ALARM2_ACTION"
-        }
-        val pendingIntent = PendingIntent.getBroadcast(this, 5, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-        cancelHourlyAlarm2()
-
-        // Obtener el tiempo actual
-        val calendar = Calendar.getInstance()
-
-        // Establecer el minuto y ajustar la hora para la siguiente
-        calendar.set(Calendar.MINUTE, minutoParaAlarmas)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        calendar.add(Calendar.HOUR_OF_DAY, 1) // Añadir una hora para la próxima alarma
-
-        // Establecer la alarma para el tiempo calculado
-        val triggerAtMillis = calendar.timeInMillis
-
-//        val triggerAtMillis = System.currentTimeMillis() + 10 * 60 * 1000 // 10 min
-//        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-
-        val ac = AlarmClockInfo(triggerAtMillis, null)
-        alarmManager.setAlarmClock(ac, pendingIntent)
-
-        // Formateo de la hora para el log
-        val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
-        val formattedTime = simpleDateFormat.format(calendar.time)
-        alarma2Info = "Alarma 2: $formattedTime"
-        log("Hourly alarm 2 set for: ${calendar.time}")
-    }
-
-    private fun setSlotUpdateAtExactMinute(minutoParaNotif: Int) {
+    private fun setHourlyUpdateAtExactHour(minutoParaNotif: Int) {
         // Alarma para actualizar la notificación del fg 1 vez cada hora cada minuto minutoParaNotif
 
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -484,6 +401,38 @@ class EndlessService : Service() {
         log("Exact hourly alarm set for: ${calendar.time}")
     }
 
+//    private fun setHourlyUpdateAtExactHourMute(minutoParaNotif: Int) {
+//        // Alarma para actualizar el color del boton mute una vez cada hora, cada minuto 'minutoParaNotif' y a los 30 segundos
+//
+//        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+//        val intent = Intent(this, AlarmReceiver::class.java).apply {
+//            action = "HOURLY_EXACT_UPDATE_COLOR_MUTE_ACTION"
+//        }
+//        val pendingIntent = PendingIntent.getBroadcast(this, 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+//
+//        cancelHourlyUpdateAtExactHourMute()
+//
+//        // Obtener la hora actual y programar la alarma para el próximo "XX:minutoParaNotif"
+//        val calendar = Calendar.getInstance()
+//
+//        // Establecer el minuto a minutoParaNotif para la próxima hora en punto
+//        calendar.set(Calendar.MINUTE, minutoParaNotif)
+//        calendar.set(Calendar.SECOND, 30)
+//        calendar.set(Calendar.MILLISECOND, 0)
+//        calendar.add(Calendar.HOUR_OF_DAY, 1) // Añadir una hora para la próxima alarma
+//
+//        // Establecer la alarma
+//        val triggerAtMillis = calendar.timeInMillis
+//        val ac = AlarmClockInfo(triggerAtMillis, null)
+//        alarmManager.setAlarmClock(ac, pendingIntent)
+//
+//        // Formateo de la hora para el toast
+//        val simpleDateFormat = SimpleDateFormat("H:mm:ss", Locale.getDefault())
+//        val formattedTime = simpleDateFormat.format(calendar.time)
+////        Toast.makeText(this, notifinfo, Toast.LENGTH_SHORT).show()
+//        log("Exact hourly alarm set for cheking mute: ${calendar.time}")
+//    }
+
     private fun cancelInitialAlarm() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(this, AlarmReceiver::class.java).apply {
@@ -493,17 +442,6 @@ class EndlessService : Service() {
 
         alarmManager.cancel(pendingIntent)
         log("cancelInitialAlarm")
-    }
-
-    private fun cancelInitialAlarm2() {
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, AlarmReceiver::class.java).apply {
-            action = "START_API_CHECK_ACTION"
-        }
-        val pendingIntent = PendingIntent.getBroadcast(this, 4, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-        alarmManager.cancel(pendingIntent)
-        log("cancelInitialAlarm2")
     }
 
     private fun cancelHourlyAlarm() {
@@ -517,17 +455,6 @@ class EndlessService : Service() {
         log("cancelHourlyAlarm")
     }
 
-    private fun cancelHourlyAlarm2() {
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, AlarmReceiver::class.java).apply {
-            action = "HOURLY_ALARM2_ACTION"
-        }
-        val pendingIntent = PendingIntent.getBroadcast(this, 5, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-        alarmManager.cancel(pendingIntent)
-        log("cancelHourlyAlarm2")
-    }
-
     private fun cancelHourlyUpdateAtExactHour() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(this, AlarmReceiver::class.java).apply {
@@ -539,27 +466,38 @@ class EndlessService : Service() {
         log("cancelHourlyUpdateAtExactHour")
     }
 
+//    private fun cancelHourlyUpdateAtExactHourMute() {
+//        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+//        val intent = Intent(this, AlarmReceiver::class.java).apply {
+//            action = "HOURLY_EXACT_UPDATE_COLOR_MUTE_ACTION"
+//        }
+//        val pendingIntent = PendingIntent.getBroadcast(this, 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+//
+//        alarmManager.cancel(pendingIntent)
+//        log("cancelHourlyUpdateAtExactHourMute")
+//    }
+
     private val updateAlarmReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
             log("Broadcast received in updateAlarmReceiver")
             if (intent?.action == "UPDATE_ALARM_ACTION") {
                 val newMinute = intent.getIntExtra("NEW_MINUTE", -1)
-                if (newMinute in delayApi..29) {
+                if (newMinute in delayApi..59) {
                     updateAlarm(newMinute)
-//                    log("Minuto para alarma 1 es $newMinute")
+                    log("Minuto para alarma es $newMinute")
                 } else {
-                    Toast.makeText(context, "Input number $delayApi - 29", Toast.LENGTH_SHORT).show()
-//                    log("Minuto para alarma 1 no válido.")
+                    Toast.makeText(context, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
+                    log("Minuto para alarma no válido.")
                 }
             }
-            else if (intent?.action == "UPDATE_ALARM2_ACTION") {
-                val newMinute = intent.getIntExtra("NEW_MINUTE2", -1)
-                if (newMinute in (delayApi + 30)..59) {
-                    updateAlarm2(newMinute)
-//                    log("Minuto para alarma 2 es $newMinute")
+            else if (intent?.action == "UPDATE_NOTIF_ACTION") {
+                val newMinute = intent.getIntExtra("NEW_NOTIF_MINUTE", -1)
+                if (newMinute in delayApi..59) {
+                    updateAlarmNotif(newMinute)
+                    log("Minuto para notificación es $newMinute")
                 } else {
-                    Toast.makeText(context, "Input number ${delayApi + 30} - 59", Toast.LENGTH_SHORT).show()
-//                    log("Minuto para alarma 2 no válido.")
+                    Toast.makeText(context, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
+                    log("Minuto para notificación no válido.")
                 }
             } else {
                 log("Action not recognized: ${intent?.action}")
@@ -585,22 +523,21 @@ class EndlessService : Service() {
         setInitialAlarm(minutoParaAlarmas)
     }
 
-    private fun updateAlarm2(minutosParaAlarmas: Int) {
+    private fun updateAlarmNotif(minutosParaNotif: Int) {
         // Actualizar la variable global
-        this.minutoParaAlarmas2 = minutosParaAlarmas
+        this.minutoParaNotif = minutosParaNotif
 
-        // Cancelar cualquier alarma horaria existente cuando el usuario cambia minutoParaAlarmas
-        cancelInitialAlarm2()
-        cancelHourlyAlarm2()
+        // Cancelar cualquier alarma horaria existente cuando el usuario cambia minutoParaNotif
+        cancelHourlyUpdateAtExactHour()
 
         // Guardar el nuevo valor en SharedPreferences
         val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
         val editor = preferences.edit()
-        editor.putInt("minutoParaAlarmas2", minutoParaAlarmas2)
+        editor.putInt("minutoParaNotif", minutoParaNotif)
         editor.apply()
 
         // Configurar la nueva alarma inicial
-        setInitialAlarm2(minutoParaAlarmas2)
+        setHourlyUpdateAtExactHour(minutoParaNotif)
     }
 
     private fun checkApi() {
@@ -650,8 +587,8 @@ class EndlessService : Service() {
                             "Empty next zone"
                         }
                         tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000) // ms
-                        // Le sumo 1 minuto para dar un margen por si se retrasa alguna alarma
-                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 60000 // ms
+                        // Le sumo 1,05 minutos para dar un margen por si se retrasa alguna alarma
+                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 65000 // ms
                         val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
                         val dateString = simpleDateFormat.format(tzNextHour)
                         val dateStringAvailable = simpleDateFormat.format(tzNextAvailableHour)
@@ -679,6 +616,27 @@ class EndlessService : Service() {
                             sizeDBBytes = getDBTotalSize(this@EndlessService)
                             log("tamaño de la DB en bytes: $sizeDBBytes")
                         }
+
+
+//                        if (isNameInSelectedItems(selectedItems ?: listOf(), tzNext)) {
+//                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+//                                ContextCompat.checkSelfPermission(
+//                                    applicationContext,
+//                                    android.Manifest.permission.POST_NOTIFICATIONS
+//                                ) == PackageManager.PERMISSION_GRANTED
+//                            ) {
+//                                val currentTimeMillis = System.currentTimeMillis()
+//                                if (currentTimeMillis < tzNextAvailableHour) {
+//                                    createNotificationAlarm(tzNext, "Wait until $nextTerrorTimeUtcAvailable")
+//                                } else {
+//                                    createNotificationAlarm(tzNext, nextTerrorTimeUtc)
+//                                }
+//                                log("Notification with alarm 32 done")
+//                            } else {
+//                                log("Notification with alarm 32 permission not granted")
+//                            }
+//                        }
+
 
                         // Notification Alarm en funcion de Login.mute
                         if (shouldNotifyZone(tzNext, selectedItems)){
@@ -709,27 +667,10 @@ class EndlessService : Service() {
         }
     }
 
-    private fun obtenerSlotInfo(delayApi: Int): SlotInfo {
-        val slot1 = delayApi % 30
-        val slot2 = slot1 + 30
-        val currentMinutes = Calendar.getInstance().get(Calendar.MINUTE)
-
-        return SlotInfo(slot1, slot2, currentMinutes)
-    }
-
-    private fun calcularMinutoParaEjecutar(slot1: Int, slot2: Int, currentMinutes: Int): Int {
-        return when {
-            currentMinutes < slot1 -> slot1                  // ventana 1-30, antes del slot1
-            currentMinutes in slot1 until 31 -> 31     // ventana 1–30, después del slot1, ponemos 31 para dar margen
-            currentMinutes in 31 until slot2 -> slot2  // ventana 30–59, antes del slot2
-            else -> 1                                        // después de slot2 → xx:01 de la siguiente hora
-        }
-    }
-
     private fun checkApiForNotification() {
         val url = Login.URL
 
-        // Compruebo estado del "mute"
+        // Compruebo estado del mute
         desactivarMuteAuto()
 
         try {
@@ -743,40 +684,43 @@ class EndlessService : Service() {
                         log("[response error] ${error.message}")
                         tzCurrent = "ERROR API / BLOQUEO"
                         tzNext = ""
-                        val (slot1, slot2, currentMinutes) = obtenerSlotInfo(delayApi)
-                        val minutoParaEjecutar = calcularMinutoParaEjecutar(
-                            slot1,
-                            slot2,
-                            currentMinutes
-                        )
-                        // Actualizar la notificación con el minuto elegido
-                        updateForegroundNotification("Wait until XX:%02d".format(minutoParaEjecutar))
-                        // Programar siguiente actualización usando el minuto elegido
-                        setSlotUpdateAtExactMinute(minutoParaEjecutar)
-                        minutoParaNotif = minutoParaEjecutar
-                        return@responseObject
+                        updateForegroundNotification("Wait until XX:%02d".format(delayApi))
+                        val calendar = Calendar.getInstance()
+                        val currentMinutes = calendar.get(Calendar.MINUTE)
+                        if (currentMinutes >= minutoParaNotif) {
+                            setHourlyUpdateAtExactHour(1)
+                            return@responseObject
+                        } else if (minutoParaNotif >= delayApi) {
+                            setHourlyUpdateAtExactHour(minutoParaNotif)
+                        } else {
+                            setHourlyUpdateAtExactHour(delayApi)
+                            return@responseObject
+                        }
                     }
 
                     if (terrorZone != null) {
                         // Manejo de errores desde la respuesta deserializada
                         if (terrorZone.error != null) {
                             log("checkApiForNotification API Error: ${terrorZone.error}")
-                            tzCurrent = "Error: ${terrorZone.error}"
-                            tzNext = "Error ${terrorZone.error}"
+                            tzCurrent = terrorZone.error
+                            tzNext = terrorZone.error
                             delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
-                            val (slot1, slot2, currentMinutes) = obtenerSlotInfo(delayApi)
-                            val minutoParaEjecutar = calcularMinutoParaEjecutar(
-                                slot1,
-                                slot2,
-                                currentMinutes
-                            )
-                            log("minutoParaEjecutar $minutoParaEjecutar")
-                            // Actualizar la notificación con el minuto elegido
-                            updateForegroundNotification("Wait until XX:%02d".format(minutoParaEjecutar))
-                            // Programar siguiente actualización usando el minuto elegido
-                            setSlotUpdateAtExactMinute(minutoParaEjecutar)
-                            minutoParaNotif = minutoParaEjecutar
-                            return@responseObject
+                            tzNextHour = obtenerHoraUnixMasUnaHora(minutoParaNotif)
+                            val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
+                            val dateString = simpleDateFormat.format(tzNextHour)
+                            val nextTerrorTimeUtc = String.format("%s", dateString)
+                            updateForegroundNotification(nextTerrorTimeUtc)
+                            val calendar = Calendar.getInstance()
+                            val currentMinutes = calendar.get(Calendar.MINUTE)
+                            if (currentMinutes >= minutoParaNotif) {
+                                setHourlyUpdateAtExactHour(1)
+                                return@responseObject
+                            } else if (minutoParaNotif >= delayApi) {
+                                setHourlyUpdateAtExactHour(minutoParaNotif)
+                            } else {
+                                setHourlyUpdateAtExactHour(delayApi)
+                                return@responseObject
+                            }
                         }
 
                         // Procesar datos válidos
@@ -803,38 +747,57 @@ class EndlessService : Service() {
                             "Empty next zone"
                         }
                         tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000) // ms
-                        // Le sumo 1 minuto para dar un margen por si se retrasa alguna alarma
-                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 60000 // ms
+                        // Le sumo 1,05 minutos para dar un margen por si se retrasa alguna alarma
+                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 65000 // ms
                         val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
                         val dateString = simpleDateFormat.format(tzNextHour)
                         val dateStringAvailable = simpleDateFormat.format(tzNextAvailableHour)
                         val nextTerrorTimeUtc = String.format("%s", dateString)
                         val nextTerrorTimeUtcAvailable = String.format("%s", dateStringAvailable)
-
                         delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
 
-                        // Calcular el próximo minuto a ejecutar usando la lógica de slots
-                        val (slot1, slot2, currentMinutes) = obtenerSlotInfo(delayApi)
-                        val calendar = Calendar.getInstance()
                         // Actualizar la notificación del fgService
-                        val (salida, minutoParaEjecutar) = when {
-                            currentMinutes < slot1 -> {
-                                // Antes del primer slot: esperar slot1
-//                                "Wait until $nextTerrorTimeUtcAvailable" to slot1
-                                "Wait until %02d:%02d".format(calendar.get(Calendar.HOUR_OF_DAY), slot1) to slot1
+                        val currentTimeMillis = System.currentTimeMillis() // Hora actual en milisegundos
+                        var minuteSplit = nextTerrorTimeUtcAvailable.split(":")[1].toInt() // Cojo los minutos
+                        val calendar = Calendar.getInstance()
+                        calendar.timeInMillis = currentTimeMillis
+                        val currentMinutes = calendar.get(Calendar.MINUTE) // Obtener los minutos actuales
+                        if (minuteSplit != delayApi){
+                            minuteSplit = delayApi
+                            // Esto es para igualar el minuto de nextTerrorTimeUtcAvailable con el delay
+                            // ya que puede devolver delay = 11 y el minuteSplit = 10
+                        }
+                        val salida = if (currentMinutes < minuteSplit) {
+//                            log("a $currentTimeMillis $tzNextAvailableHour")
+                            if (minutoParaNotif < minuteSplit) {
+//                                log("currentTimeMillis < tzNextAvailableHour, minutoParaNotif < minuteSplit")
+                                "Wait until $nextTerrorTimeUtcAvailable"
+                            }else{
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, minutoParaNotif)
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis < tzNextAvailableHour, minutoParaNotif > minuteSplit")
+                                "Wait until $nextupdatedEpochUtc"
                             }
-                            currentMinutes in slot1 until 31 -> {
-                                // Primera ventana ya pasó: mostrar nextTerrorTimeUtc, programar slot2
-                                nextTerrorTimeUtc to 31 // margen de 1 min después del primer slot
-                            }
-                            currentMinutes in 31 until slot2 -> {
-                                // Segunda ventana todavía no: esperar slot2
-//                                "Wait until $nextTerrorTimeUtcAvailable" to slot2
-                                "Wait until %02d:%02d".format(calendar.get(Calendar.HOUR_OF_DAY), slot2) to slot2
-                            }
-                            else -> {
-                                // Después de slot2: mostrar nextTerrorTimeUtc, programar xx:01 de la siguiente hora
-                                nextTerrorTimeUtc to 1
+                        } else {
+//                            log("b $currentTimeMillis $tzNextAvailableHour")
+                            if (currentMinutes < minutoParaNotif) {
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, minutoParaNotif)
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes < editTextValue")
+                                "Wait until $nextupdatedEpochUtc"
+                            }else{
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes >= editTextValue")
+                                nextTerrorTimeUtc
                             }
                         }
 
@@ -842,29 +805,33 @@ class EndlessService : Service() {
                         updateForegroundNotification(salida)
 //                        log("salida = $salida")
 
-                        minutoParaNotif = minutoParaEjecutar
-
                         // Actualiza vista de mainActivity para cuando la pantalla está activa
                         val intent = Intent("UPDATE_TZNEXT")
                         intent.putExtra("new_tzcurrent", tzCurrent)
                         intent.putExtra("new_tznext", "$salida $tzNext")
                         sendBroadcast(intent)
 
-                        // Programar la próxima actualización exacta según el slot
-                        setSlotUpdateAtExactMinute(minutoParaEjecutar)
+                        // Verificar si debe desactivarse el modo mute automáticamente
+//                        setHourlyUpdateAtExactHourMute(0) // A los 30s de cada hora
+//                        desactivarMuteAuto()
+
+                        // Configurar la próxima actualización exacta en la siguiente hora en punto + 1 min
+//                        log("$currentMinutes, $minutoParaNotif")
+                        if (currentMinutes >= minutoParaNotif) {
+                            // Esto es para que haga una notif a xx:01
+                            setHourlyUpdateAtExactHour(1)
+                            return@responseObject
+                        }
+                        // Configurar la próxima actualización exacta en la siguiente hora en punto + delayApi/minutoParaNotif
+                        if(minutoParaNotif > delayApi) {
+                            setHourlyUpdateAtExactHour(minutoParaNotif)
+                        }else{
+                            setHourlyUpdateAtExactHour(delayApi)
+                        }
                     } else {
                         log("Error: terrorZone es nulo")
-                        tzCurrent = "Error: terrorZone es nulo"
-                        tzNext = "Error terrorZone es nulo"
-                        val (slot1, slot2, currentMinutes) = obtenerSlotInfo(delayApi)
-                        val minutoParaEjecutar = calcularMinutoParaEjecutar(
-                            slot1,
-                            slot2,
-                            currentMinutes
-                        )
-                        // Actualizar la notificación con el minuto elegido
-                        updateForegroundNotification("ERROR: terrorZone es nulo. Wait until XX:%02d".format(minutoParaEjecutar))
-                        minutoParaNotif = minutoParaEjecutar
+                        updateForegroundNotification("ERROR terrorZone es nulo")
+                        setHourlyUpdateAtExactHour(minutoParaNotif)
                         return@responseObject
                     }
                 }
@@ -873,19 +840,22 @@ class EndlessService : Service() {
         }
     }
 
-    private fun obtenerHoraUnixMasMediaHora(minutoParaEjecutar: Int): Long {
-        // Obtengo la hora actual y le sumo 30 min y retorno el tiempo en formato Unix
+    private fun obtenerHoraUnixMasUnaHora(delayApi: Int): Long {
+        // Obtengo la hora actual y le sumo 1 a la hora y retorno el tiempo en formato Unix
+
+        // Obtener la instancia del calendario con la zona horaria local
         val calendario = Calendar.getInstance()
 
-        // Establecemos los minutos al slot base
-        calendario.set(Calendar.MINUTE, minutoParaEjecutar)
+        // Sumar 1 hora
+        calendario.add(Calendar.HOUR_OF_DAY, 1)
+
+        // Establecer los minutos a delayApi, segundos y milisegundos a cero
+        calendario.set(Calendar.MINUTE, delayApi)
         calendario.set(Calendar.SECOND, 0)
         calendario.set(Calendar.MILLISECOND, 0)
 
-        // Sumar 30 minutos reales
-        calendario.add(Calendar.MINUTE, 30)
-
-        return calendario.timeInMillis
+        // Convertir a tiempo Unix (Epoch time)
+        return calendario.timeInMillis // / 1000 // Dividir entre 1000 para obtener segundos
     }
 
     private fun createNotificationChannel(){
@@ -1066,26 +1036,19 @@ class EndlessService : Service() {
     }
 
     private fun shouldNotifyZone(tzNext: String, selectedItems: List<String>): Boolean {
-        // Función que decide si se debe notificar una zona
-
         val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         val start = Login.horaInicio
         val end = Login.horaFin
-
-        Log.d("EndlessService", "shouldNotifyZone - Mute=${Login.mute}, horaInicio=${Login.horaInicio}, horaFin=${Login.horaFin}, ultimaDesactivacionAuto=${Login.ultimaDesactivacionAuto}, bestzones=${Login.rangoActivo}")
 
         // Si mute está desactivado, notificar siempre que la zona esté en la lista seleccionada
         if (!Login.mute) {
             return isNameInSelectedItems(selectedItems, tzNext)
         }
 
-        // Evitar rango 24 horas accidental
-        if (start == end) return isNameInSelectedItems(selectedItems, tzNext)
-
         // Verificar si estamos dentro del intervalo silenciado
         val isWithinMutedInterval = if (start < end) {
             // Ej.: 5-7, mute entre 5:00 y 6:59
-            currentHour in start until end // currentHourAdjusted >= start && currentHourAdjusted < end
+            currentHour in start..<end // currentHour >= start && currentHour < end
         } else {
             // Ej.: 22-5, mute entre 22:00 y 4:59
             currentHour >= start || currentHour < end
@@ -1107,37 +1070,34 @@ class EndlessService : Service() {
     }
 
     private fun desactivarMuteAuto() {
-        // 1. Si el mute ya está en false, no hay nada que hacer
-        if (!Login.mute) return
-
         val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        val end = Login.horaFin
-        val currentDay = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+        Log.d("EndlessService", "desactivarMuteAuto - Mute=${Login.mute}, horaInicio=${Login.horaInicio}, horaFin=${Login.horaFin}, bestzones=${Login.rangoActivo}")
+        // Si mute activo, comprueba si hay que desactivar el mute cuando el rango de horas se ha cumplido
+        if (Login.mute) {
+            val start = Login.horaInicio
+            val end = Login.horaFin
 
-        // 2. Usamos una huella que incluya el día para que
-        // si el mute cruza medianoche, la desactivación sea única
-        val huellaActual = "$currentDay-$currentHour"
-
-        // 3. Solo entramos aquí si el reloj marca exactamente la hora de fin
-        if (currentHour == end && Login.ultimaDesactivacionAuto != huellaActual) {
-
-            Login.mute = false
-            Login.ultimaDesactivacionAuto = huellaActual
-
-            // Guardar permanentemente
-            val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
-            prefs.edit().apply {
-                putBoolean("mute", false)
-                putString("ultimaDesactivacion", huellaActual)
-                apply()
+            val shouldBeMuted = if (start < end) {
+                // Rango normal, ejemplo: 11-15, mute de 11:00 hasta 14:59
+                currentHour in start until end
+            } else {
+                // Rango cruzando medianoche, ejemplo: 22-5, mute de 22:00 hasta 4:59
+                currentHour >= start || currentHour < end
             }
 
-            // Notificar al sistema
-            val intent = Intent("MUTE_STATE_CHANGED")
-            intent.putExtra("muteState", false)
-            sendBroadcast(intent)
+            if (!shouldBeMuted) {
+                Login.mute = false
+                log("Modo Mute desactivado automáticamente.")
 
-            log("Mute desactivado automáticamente: se alcanzó la hora de fin ($end:00)")
+                // Guardar en SharedPreferences
+                val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("mute", false).apply()
+
+                // Enviar broadcast para notificar a MainActivity
+                val intent = Intent("MUTE_STATE_CHANGED")
+                intent.putExtra("muteState", false)
+                sendBroadcast(intent)
+            }
         }
     }
 

@@ -13,10 +13,11 @@ class Login {
         const val URL: String = "https://www.d2emu.com/api/v1/tz"
         const val USERNAME: String = ""
         const val TOKEN: String = ""
-        //////////////////////////// ALARM - NOTIF ////////////////////
-        const val MINUTOPARAALARMASDEFAULT: Int = 40 // Minuto predeterminado para alarmas
-        const val MINUTOPARANOTIF: Int = 11 // Minuto predeterminado para notificación. NO debe ser menor que DELAYAPIDEFAULT
-        const val DELAYAPIDEFAULT: Int = 11 // Minuto predeterminado para que la api retorne resultados. NO debe ser menor al valor delayApi retornado por la API
+        //////////////////////////// ALARMAS - NOTIF //////////////////
+        const val MINUTOPARAALARMASDEFAULT: Int = 15 // Minuto predeterminado para alarma 1
+        const val MINUTOPARAALARMAS2DEFAULT: Int = 45 // Minuto predeterminado para alarma 2
+        const val MINUTOPARANOTIF: Int = 5 // Minuto predeterminado para notificación. NO debe ser menor que DELAYAPIDEFAULT
+        const val DELAYAPIDEFAULT: Int = 5 // Minuto predeterminado para que la api retorne resultados. NO debe ser menor al valor delayApi retornado por la API
         //////////////////////////// MUTE APP /////////////////////////
         val BEST_ZONES: List<String> = ZONAS.items.toTypedArray().toList()
 //        val BEST_ZONES = arrayOf(
@@ -31,6 +32,7 @@ class Login {
         var horaFin: Int = -1
         var rangoActivo: Boolean = false
         var mute: Boolean = false
+        var ultimaDesactivacionAuto: String = ""
         //////////////////////////// WINTER EVENT /////////////////////
         const val WINTERMINZONES: Int = 13 // Mínimo número de zonas que vienen en la api cuando es el winter event
     }

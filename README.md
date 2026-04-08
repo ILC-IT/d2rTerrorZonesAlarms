@@ -1,3 +1,9 @@
+# v1.41
+- Updated with the ability to set two alarms, one for each half hour, due to the changes in TZ timers introduced with RotW.
+- Notif button removed: now it checks delayApi value directly.
+- Be aware: notification timers use (delayApi + 1) minutes to avoid possible delays in alarms.
+- Fixed an issue with mute hours. Mute button green color is just to show that app will be muted within specified range.
+
 # v1.38
 - Update zones for RotW. Added app uptime inside "I" button. minutoAlarm saved in sharedPreferences.
 
@@ -51,14 +57,16 @@ Android's app that checks the next terror zone for Diablo 2 Resurrected.
 # Images from app
 ![6](.pictures/6.png) ![7](.pictures/7.png) ![8](.pictures/8.png) ![9](.pictures/9.png)
 
-# **WARNING**:
-- You need to allow notifications, auto launch, background data and no battery restrictions/optimizations in your phone.
-- If you have a Realme phone you need to:
-  - Bateria / Optimizar uso de bateria / no optimizar
-  - Bateria / Espera optimizada / desactivado
-  - App / Uso de bateria / permitir en segundo plano / permitir inicio automatico
-- For example, here you can see pictures from settings from Realme Android 13:
-![3](.pictures/3.png) ![4](.pictures/4.png) ![5](.pictures/5.png)
+---
+
+> [!WARNING]
+> - You need to allow notifications, auto launch, background data and no battery restrictions/optimizations in your phone.
+> - If you have a Realme phone you need to:
+>   - Bateria / Optimizar uso de bateria / no optimizar
+>   - Bateria / Espera optimizada / desactivado
+>   - App / Uso de bateria / permitir en segundo plano / permitir inicio automatico
+> - For example, here you can see pictures from settings from Realme Android 13:
+> ![3](.pictures/3.png) ![4](.pictures/4.png) ![5](.pictures/5.png)
 
 ---
 ---

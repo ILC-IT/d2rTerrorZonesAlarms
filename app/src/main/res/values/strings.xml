@@ -11,9 +11,12 @@
     <string name="seleccionar_todas">Todas</string>
     <string name="deseleccionar_todas">Ninguna</string>
     <string name="minuto_0_59" translatable="false">%1$d-59</string>
-    <string name="set_alarm">ALARMA</string>
-    <string name="set_noti">NOTIF</string>
-    <string name="version_app_info">App version info</string>
+    <string name="minuto_0_29" translatable="false">%1$d-29</string>
+    <string name="minuto_30_59" translatable="false">%1$d-59</string>
+    <string name="set_alarm">ALARMA 1</string>
+    <string name="set_alarm2">ALARMA 2</string>
+    <string name="set_noti" translatable="false">NOTIF</string>
+    <string name="version_app_info" translatable="false">App version info</string>
     <string name="show_history" translatable="false">H</string>
     <string name="closeDB">Cerrar</string>
     <string name="borrarDB">Borrar DB</string>

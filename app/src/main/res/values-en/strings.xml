@@ -6,9 +6,8 @@
     <string name="borrar_lista">Delete All</string>
     <string name="seleccionar_todas">Select all</string>
     <string name="deseleccionar_todas">Clear all</string>
-    <string name="set_alarm">ALARM</string>
-    <string name="set_noti">NOTIF</string>
-    <string name="version_app_info">App version info</string>
+    <string name="set_alarm">ALARM 1</string>
+    <string name="set_alarm2">ALARM 2</string>
     <string name="closeDB">Close</string>
     <string name="borrarDB">Delete DB</string>
     <string name="hora_init">Init Hour</string>

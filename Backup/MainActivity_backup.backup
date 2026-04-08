@@ -45,7 +45,7 @@ import java.util.Date
 import java.util.Locale
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity_backup : ComponentActivity() {
 
     private lateinit var msgTzCurrent: TextView
     private lateinit var msgTzNext: TextView
@@ -64,11 +64,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnClearList: Button
     private lateinit var btnSelectAllList: Button
     private lateinit var btnSetAlarm: Button
-    private lateinit var btnSetAlarm2: Button
+    private lateinit var btnSetNotif: Button
     private lateinit var btnInfo: ImageButton
     private lateinit var btnListLayout: LinearLayout
     private lateinit var minuteInput: EditText
-    private lateinit var minute2Input: EditText
+    private lateinit var minuteNotifInput: EditText
     private lateinit var btnShowHistory: Button
     private lateinit var btnVentana: Button
     private val items = ZONAS.items
@@ -92,9 +92,9 @@ class MainActivity : ComponentActivity() {
         btnSelectAllList = findViewById(R.id.selectAllListButton)
         btnListLayout = findViewById(R.id.buttonsListLayout)
         btnSetAlarm = findViewById(R.id.setAlarmButton)
-        btnSetAlarm2 = findViewById(R.id.setAlarm2Button)
+        btnSetNotif = findViewById(R.id.setNotifButton)
         minuteInput = findViewById(R.id.minuteInput)
-        minute2Input = findViewById(R.id.minute2Input)
+        minuteNotifInput = findViewById(R.id.minuteNotifInput)
         btnInfo = findViewById(R.id.infoButton)
         btnShowHistory = findViewById(R.id.btnShowHistory)
         btnVentana = findViewById(R.id.btnMostrarVentana)
@@ -159,12 +159,12 @@ class MainActivity : ComponentActivity() {
             // Verificar si el servicio está activo
             if (getServiceState(this) == ServiceState.STOPPED) {
                 minuteInput.setText(Login.MINUTOPARAALARMASDEFAULT.toString())
-                Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer la alarma 1.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer la alarma.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             val inputText = minuteInput.text.toString()
-            minuteInput.hint = "$delayApi-29"
+            minuteInput.hint = "$delayApi-59"
             try {
                 val selectedMinute = if (inputText.isEmpty()) {
                     minuteInput.setText(String.format(Locale.getDefault(), "%d", Login.MINUTOPARAALARMASDEFAULT))
@@ -172,7 +172,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     inputText.toInt()
                 }
-                if (selectedMinute in delayApi..29) {
+                if (selectedMinute in delayApi..59) {
                     // Crear un Intent para enviar al servicio en ejecución y actualizar la alarma
                     val updateIntent = Intent().apply {
                         action = "UPDATE_ALARM_ACTION"
@@ -185,9 +185,9 @@ class MainActivity : ComponentActivity() {
                     editor.apply()
 
                     sendBroadcast(updateIntent)
-                    log("Broadcast sent with minuto alarma1 seleccionado = $selectedMinute")
+                    log("Broadcast sent with minuto alarma seleccionado = $selectedMinute")
                 } else {
-                    Toast.makeText(this, "Input number $delayApi - 29", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: NumberFormatException) {
                 Toast.makeText(this, "Wrong input!", Toast.LENGTH_SHORT).show()
@@ -196,40 +196,40 @@ class MainActivity : ComponentActivity() {
             ocultarTeclado(it, this)
         }
 
-        // Boton btnSetAlarm2 Button Service
-        btnSetAlarm2.setOnClickListener {
+        // Boton setNotif Button Service
+        btnSetNotif.setOnClickListener {
             // Verificar si el servicio está activo
             if (getServiceState(this) == ServiceState.STOPPED) {
-                minute2Input.setText(Login.MINUTOPARAALARMAS2DEFAULT.toString())
-                Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer la alarma 2.", Toast.LENGTH_SHORT).show()
+                minuteNotifInput.setText(Login.MINUTOPARANOTIF.toString())
+                Toast.makeText(this, "El servicio no está activo. Inícialo antes de establecer la notificación.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            val inputText = minute2Input.text.toString()
-            minute2Input.hint = "${delayApi + 30}-59"
+            val inputText = minuteNotifInput.text.toString()
+            minuteNotifInput.hint = "$delayApi-59"
             try {
                 val selectedMinute = if (inputText.isEmpty()) {
-                    minute2Input.setText(String.format(Locale.getDefault(), "%d", Login.MINUTOPARAALARMAS2DEFAULT))
-                    Login.MINUTOPARAALARMAS2DEFAULT // Valor predeterminado si el EditText está vacío
+                    minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", delayApi))
+                    Login.DELAYAPIDEFAULT // Valor predeterminado si el EditText está vacío
                 } else {
                     inputText.toInt()
                 }
-                if (selectedMinute in (delayApi + 30)..59) {
-                    // Crear un Intent para enviar al servicio en ejecución y actualizar la alarma
+                if (selectedMinute in delayApi..59) {
+                    // Crear un Intent para enviar al servicio en ejecución y actualizar la notificacion
                     val updateIntent = Intent().apply {
-                        action = "UPDATE_ALARM2_ACTION"
-                        putExtra("NEW_MINUTE2", selectedMinute)
+                        action = "UPDATE_NOTIF_ACTION"
+                        putExtra("NEW_NOTIF_MINUTE", selectedMinute)
                     }
 
                     val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
                     val editor = preferences.edit()
-                    editor.putInt("minutoParaAlarmas2", selectedMinute)
+                    editor.putInt("minutoParaNotif", selectedMinute)
                     editor.apply()
 
                     sendBroadcast(updateIntent)
-                    log("Broadcast sent with minuto alarma2 seleccionado = $selectedMinute")
+                    log("Broadcast sent with minuto notificación seleccionado = $selectedMinute")
                 } else {
-                    Toast.makeText(this, "Input number ${delayApi + 30} - 59", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Input number $delayApi - 59", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: NumberFormatException) {
                 Toast.makeText(this, "Wrong input!", Toast.LENGTH_SHORT).show()
@@ -253,7 +253,6 @@ class MainActivity : ComponentActivity() {
                 "$uptime\n" +
                 "API Delay: XX:%02d $errorDelayApi\n".format(delayApi) +
                 "${EndlessService.alarmaInfo}\n" +
-                "${EndlessService.alarma2Info}\n" +
                 "${EndlessService.notifinfo}\n" +
                 "DB: ${EndlessService.sizeDBBytes/1024}KB\n" +
                 "Mute: ${Login.mute}" +
@@ -288,7 +287,7 @@ class MainActivity : ComponentActivity() {
             showModoMuteDialog()
         }
 
-        // Inicializa el receiver para cambiar el color del "mute"
+        // Inicializa el receiver para cambiar el color del mute
         receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == "EndlessService_DETENIDO") {
@@ -303,12 +302,15 @@ class MainActivity : ComponentActivity() {
                     }
                     minuteInput.setText(String.format(Locale.getDefault(), "%d", savedMinute))
 
-                    val savedMinute2: Int = if (preferences.contains("minutoParaAlarmas2")) {
-                        preferences.getInt("minutoParaAlarmas2", Login.MINUTOPARAALARMAS2DEFAULT)
-                    } else {
-                        Login.MINUTOPARAALARMAS2DEFAULT
-                    }
-                    minute2Input.setText(String.format(Locale.getDefault(), "%d", savedMinute2))
+//                    val savedMinuteNotif: Int = if (preferences.contains("minutoParaNotif")) {
+//                        preferences.getInt("minutoParaNotif", Login.MINUTOPARANOTIF)
+//                    } else {
+//                        Login.MINUTOPARANOTIF
+//                    }
+                    val editor = preferences.edit()
+                    editor.putInt("minutoParaNotif", Login.MINUTOPARANOTIF)
+                    editor.apply()
+                    minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", Login.MINUTOPARANOTIF))
                 }
                 if (intent?.action == "MUTE_STATE_CHANGED") {
 //                    val newState = intent.getBooleanExtra("muteState", false)
@@ -335,15 +337,14 @@ class MainActivity : ComponentActivity() {
         // Recargar selectedItems de SharedPreferences cuando la actividad se reanuda
         loadSelectedItems()
         adapter.notifyDataSetChanged()
-
         checkApiImmediately()
 
         // Recuperar el valor del minuto para alarmas de SharedPreferences
         val preferences = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
-        val savedMinute = preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT) // Valor predeterminado: 15
-        val savedMinute2 = preferences.getInt("minutoParaAlarmas2", Login.MINUTOPARAALARMAS2DEFAULT) // Valor predeterminado: 45
+        val savedMinute = preferences.getInt("minutoParaAlarmas", Login.MINUTOPARAALARMASDEFAULT) // Valor predeterminado: 40
+        val savedNotifMinute = preferences.getInt("minutoParaNotif", Login.DELAYAPIDEFAULT) // Valor predeterminado: 11
         minuteInput.setText(String.format(Locale.getDefault(), "%d", savedMinute))
-        minute2Input.setText(String.format(Locale.getDefault(), "%d", savedMinute2))
+        minuteNotifInput.setText(String.format(Locale.getDefault(), "%d", savedNotifMinute))
 
         // Registrar broadcast para cambiar el color del boton mute y actualizar vista con pantalla activa
         actualizarColorMute()
@@ -594,9 +595,6 @@ class MainActivity : ComponentActivity() {
             }
 
             // Guardar los valores
-            if (Login.mute != mute || Login.horaFin != (fin ?: 0)) {
-                Login.ultimaDesactivacionAuto = ""
-            }
             Login.horaInicio = inicio ?: 0
             Login.horaFin = fin ?: 0
             Login.rangoActivo = rangoActivo
@@ -621,8 +619,7 @@ class MainActivity : ComponentActivity() {
                 Login.horaFin,
                 Login.rangoActivo,
                 Login.mute,
-                Login.selectedBestZones,
-                Login.ultimaDesactivacionAuto
+                Login.selectedBestZones
             )
 
             Toast.makeText(this, "Configuración mute guardada", Toast.LENGTH_SHORT).show()
@@ -651,8 +648,7 @@ class MainActivity : ComponentActivity() {
         horaFin: Int,
         rangoActivo: Boolean,
         mute: Boolean,
-        selectedBestZones: List<String>,
-        ultimaDesactivacion: String
+        selectedBestZones: List<String>
     ) {
         val prefs = getSharedPreferences("ModoMuteConfig", Context.MODE_PRIVATE)
         prefs.edit().apply {
@@ -661,7 +657,6 @@ class MainActivity : ComponentActivity() {
             putBoolean("rangoActivo", rangoActivo)
             putBoolean("mute", mute)
             putStringSet("selectedBestZones", selectedBestZones.toSet())
-            putString("ultimaDesactivacion", ultimaDesactivacion)
             apply()
         }
     }
@@ -673,7 +668,6 @@ class MainActivity : ComponentActivity() {
         Login.rangoActivo = prefs.getBoolean("rangoActivo", false)
         Login.mute = prefs.getBoolean("mute", false)
         Login.selectedBestZones = prefs.getStringSet("selectedBestZones", emptySet())!!.toList()
-        Login.ultimaDesactivacionAuto = prefs.getString("ultimaDesactivacion", "") ?: ""
     }
 
     private fun checkApiImmediately() {
@@ -731,31 +725,56 @@ class MainActivity : ComponentActivity() {
                             "Empty next zone"
                         }
                         tzNextHour = terrorZone.nextTerrorTimeUtc.times(1000) // ms
-                        // Le sumo 1 minuto para dar un margen por si se retrasa alguna alarma
-                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 60000 // ms
+                        // Le sumo 1,05 minutos para dar un margen por si se retrasa alguna alarma
+                        tzNextAvailableHour = terrorZone.nextAvailableTimeUtc.times(1000) + 65000 // ms
                         val simpleDateFormat = SimpleDateFormat("H:mm", Locale.getDefault())
                         val dateString = simpleDateFormat.format(tzNextHour)
                         val dateStringAvailable = simpleDateFormat.format(tzNextAvailableHour)
                         val nextTerrorTimeUtc = String.format("%s", dateString)
                         val nextTerrorTimeUtcAvailable = String.format("%s", dateStringAvailable)
                         delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
-                        val hint = getString(R.string.minuto_0_29, delayApi)
-                        val hint2 = getString(R.string.minuto_30_59, delayApi + 30)
+                        val hint = getString(R.string.minuto_0_59, delayApi)
                         findViewById<EditText>(R.id.minuteInput).hint = hint
-                        findViewById<EditText>(R.id.minute2Input).hint = hint2
+                        findViewById<EditText>(R.id.minuteNotifInput).hint = hint
 //                        log("current: $tzCurrent $tzNext $tzNextHour $tzNextAvailableHour $delayApi")
 
                         val currentTimeMillis = System.currentTimeMillis() // Hora actual en milisegundos
-                        val minuteSplit = nextTerrorTimeUtcAvailable.split(":")[1].toInt() // Cojo los minutos de la sig hora disponible
+                        val minuteSplit = nextTerrorTimeUtcAvailable.split(":")[1].toInt() // Cojo los minutos
+                        val editTextValue = minuteNotifInput.text.toString() // Obtener el EditText como String
                         val calendar = Calendar.getInstance()
                         calendar.timeInMillis = currentTimeMillis
                         val currentMinutes = calendar.get(Calendar.MINUTE) // Obtener los minutos actuales
-                        // Aquí uso nextTerrorTimeUtcAvailable cuyo minuto normalmente es igual a (delayApi-1), por eso
-                        // parece que lo dice 1 minuto antes pero en realidad chekea un minuto después.
+//                        val salida = if (currentTimeMillis < tzNextAvailableHour) {
                         val salida = if (currentMinutes < minuteSplit) {
-                            "Wait until $nextTerrorTimeUtcAvailable $tzNext"
+                            if (editTextValue.toInt() < minuteSplit) {
+//                                log("currentTimeMillis < tzNextAvailableHour, editTextValue < minuteSplit")
+                                "Wait until $nextTerrorTimeUtcAvailable $tzNext"
+                            }else{
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, editTextValue.toInt())
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis < tzNextAvailableHour, editTextValue > minuteSplit")
+                                "Wait until $nextupdatedEpochUtc $tzNext"
+                            }
                         } else {
-                            "$nextTerrorTimeUtc $tzNext"
+                            if (currentMinutes < editTextValue.toInt()) {
+                                // Actualizar el minuto de la hora actual con el nuevo minuto
+                                calendar.set(Calendar.MINUTE, editTextValue.toInt())
+                                calendar.set(Calendar.SECOND, 0)
+                                // Convertir de vuelta a epoch time
+                                val updatedEpoch = calendar.timeInMillis
+                                val dateStringUpdateEpoch = simpleDateFormat.format(updatedEpoch)
+                                val nextupdatedEpochUtc = String.format("%s", dateStringUpdateEpoch)
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes < editTextValue")
+                                "Wait until $nextupdatedEpochUtc $tzNext"
+                            }else{
+//                                log("currentTimeMillis >= tzNextAvailableHour, currentMinutes >= editTextValue")
+                                "$nextTerrorTimeUtc $tzNext"
+                            }
                         }
                         msgTzCurrent.text = tzCurrent
                         msgTzNext.text = salida
@@ -962,7 +981,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showSnackbar(view: View, message: String) {
         Snackbar.make(view, message, Snackbar.LENGTH_LONG)
-            .setTextMaxLines(8) // Permite hasta 8 líneas
+            .setTextMaxLines(7) // Permite hasta 7 líneas
             .show()
     }
 
@@ -972,7 +991,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun actualizarColorMute() {
-        // Cambia el color del boton "mute" según el estado de la variable
+        // Cambia el color del boton mute según el estado de la variable
         log("actualizarColorMute")
         if (Login.mute){
             val green = ColorStateList.valueOf(Color.parseColor("#4CAF50"))
@@ -1012,10 +1031,9 @@ class MainActivity : ComponentActivity() {
                         // Procesar datos válidos
                         delayApi = (terrorZone.delay / 60) + 1 // paso a minutos y le sumo 1
                         errorDelayApi = ""
-                        val hint = getString(R.string.minuto_0_29, delayApi)
-                        val hint2 = getString(R.string.minuto_30_59, delayApi + 30)
+                        val hint = getString(R.string.minuto_0_59, delayApi)
                         findViewById<EditText>(R.id.minuteInput).hint = hint
-                        findViewById<EditText>(R.id.minute2Input).hint = hint2
+                        findViewById<EditText>(R.id.minuteNotifInput).hint = hint
                     }
                 }
         } catch (e: Exception) {
