@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **d2emu.com API requires authorization in headers, you must put your `username` and `token` inside Utils.kt** before building apk.
+
 # v1.41
 - Updated with the ability to set two alarms, one for each half hour, due to the changes in TZ timers introduced with RotW.
 - Notif button removed: now it checks delayApi value directly.
@@ -38,7 +41,6 @@ Android's app that checks the next terror zone for Diablo 2 Resurrected.
   - You can select inside app the terror zones to be alarmed with. If you check some of them and next terror zone matches with one of your selected zones, you will receive a notification with alarm sound.
   - You can select custom minute to update the foreground notification.
   - The foreground notification will auto update itself with current info from d2emu API based on delay time and custom minute.
-- **Since d2emu API now requires authorization in headers, you must put your `username` and `token` inside Utils.kt** before building apk.
 - **UPDATE: now API responds with "delay" and "next_available_time_utc**. Delay is the time from next_terror_time_utc that next zone will be available at API.
 - Reworked layout to include new buttons: update view (green arrows) and info (blue exclamation mark).
 - Tested in Android 7, 10, 11, 12, 13 with Xiaomi and Realme phones.
